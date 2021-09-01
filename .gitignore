@@ -17,3 +17,5 @@ package-lock.json
 .nyc_output
 coverage
 target
+generator-plugins/jekyll/Makefile
+generator-plugins/jekyll/pagebreak

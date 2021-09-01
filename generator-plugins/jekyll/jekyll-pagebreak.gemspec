@@ -11,7 +11,8 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/CloudCannon/pagebreak"
   spec.summary       = "A Jekyll plugin to paginate the output of any static site generator"
 
-  spec.files         = `git ls-files lib exe`.split("\n")
+  spec.files         = `git ls-files lib ext`.split("\n")
+  spec.extensions    = 'ext/extconf.rb'
   spec.platform      = Gem::Platform::RUBY
   spec.require_paths = ["lib"]
   spec.license       = "MIT"
