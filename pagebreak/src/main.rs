@@ -65,16 +65,16 @@ struct PagebreakNode {
 
 struct SourcePage {
     path: PathBuf,
-    source: String,
+    source: Option<String>,
 }
 
 impl SourcePage {
     fn contains_pagination(&self) -> bool {
-        self.source.contains("data-pagebreak")
+        self.source.as_ref().unwrap().contains("data-pagebreak")
     }
 
     fn parse(&self) -> NodeRef {
-        kuchiki::parse_html().one(self.source.as_str())
+        kuchiki::parse_html().one(self.source.as_ref().unwrap().as_str())
     }
 
     fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
@@ -163,19 +163,25 @@ fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
     let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*.html"])
         .build()
         .unwrap();
-    let mut pages = vec![];
-    for entry in globwalker {
-        let entry = entry.unwrap();
-        let path = entry.path();
 
-        let mut file = fs::File::open(path).unwrap();
-        let mut content = String::new();
-        file.read_to_string(&mut content).unwrap();
+    let mut pages = vec![];
+    globwalker.for_each(|entry| {
+        let entry = entry.unwrap();
+        let path = entry.path().to_owned();
 
         pages.push(SourcePage {
             path: path.to_path_buf(),
-            source: content,
+            source: None,
         });
-    }
+    });
+
+    pages.par_iter_mut().for_each(|page| {
+        let mut file = fs::File::open(&page.path).unwrap();
+        let mut content = String::new();
+        file.read_to_string(&mut content).unwrap();
+
+        page.source = Some(content);
+    });
+
     pages
 }
