@@ -28,6 +28,18 @@ impl PagebreakRunner {
             },
         }
     }
+
+    fn full_output_path(&self) -> PathBuf {
+        let full_output_path = self.working_directory.join(&self.output);
+        fs::create_dir_all(&full_output_path).unwrap();
+        match fs::canonicalize(&full_output_path) {
+            Ok(path) => path,
+            Err(_) => {
+                eprintln!("Pagebreak error: couldn't create output directory: {:?}", full_output_path);
+                std::process::exit(1);
+            },
+        }
+    }
     
     fn copy_source_to_output(&self) {
         // Not Yet Implemented
@@ -49,9 +61,10 @@ impl PagebreakRunner {
 
     fn paginate(&mut self) {
         let source = self.full_source_path();
+        let output = self.full_output_path();
         let mut pages = self.pages.take().unwrap();
         pages.iter_mut().for_each(|page| {
-            page.paginate(&source, &self.output);
+            page.paginate(&source, &output);
         });
     }
 
