@@ -40,16 +40,16 @@ fn main() {
     // let options = CopyOptions::new();
     // copy(&source, &output_path, &options).unwrap();
 
-    let mut pages = read_pages(&source);
-    println!("Pages found: {}", pages.len());
-
-    pages = pages.into_iter().filter(|page| page.contains_pagination()).collect();
+    let mut pages: Vec<Page> = read_pages(&source)
+        .into_iter()
+        .filter(|page| page.contains_pagination())
+        .collect();
 
     pages.iter_mut().for_each(|page| {
         page.parse();
     });
 
-    println!("Pages parsed: {}", pages.len());
+    println!("Pagebreak: Found {} pages with pagination", pages.len());
 
     pages.iter_mut().for_each(|page| {
         page.paginate(&source, &output_path);
@@ -79,6 +79,8 @@ impl Page {
     }
 
     fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
+        let relative_file_path = self.path.strip_prefix(&input_path).unwrap();
+
         let mut elements = vec![];
         let pagebreak_element = self.parsed.as_ref().unwrap().select("[data-pagebreak]").unwrap().next().unwrap();
         let children = pagebreak_element.as_node().children();
@@ -90,7 +92,6 @@ impl Page {
                 elements.push(PagebreakNode { element: element, parent: parent });
             }
         }
-        println!("Found {} pagination children on {:?}", elements.len(), self.path);
 
         let pagination_attributes = &pagebreak_element.as_node().as_element().unwrap().attributes.borrow();
         let page_url_format = pagination_attributes
@@ -103,7 +104,7 @@ impl Page {
             .unwrap();
         let page_count = (elements.len() + per_page - 1) / per_page;
 
-        println!("Building {} pages of size {}", page_count, per_page);
+        println!("Pagebreak: Found {} items on {:?}; Building {} pages of size {}", elements.len(), relative_file_path, page_count, per_page);
 
         // Detach all elements from their parents.
         elements.iter_mut().for_each(|element| {
@@ -121,7 +122,6 @@ impl Page {
                 paginated_elements.push(element.parent.children().last().unwrap());
             });
 
-            let relative_file_path = self.path.strip_prefix(&input_path).unwrap();
             let mut file_url: &str = &page_url_format
                 .replace(":url", relative_file_path.parent().unwrap().to_str().unwrap())
                 .replace(":num", &page_number.to_string());
@@ -133,7 +133,6 @@ impl Page {
                 _ => output_path.join(file_url),
             };
             let output_file_path = page_directory.join(relative_file_path.file_name().unwrap());
-            println!("Creating {:?}", &page_directory);
             fs::create_dir_all(&page_directory).unwrap();
             self.parsed.as_ref().unwrap().serialize_to_file(output_file_path.as_path()).unwrap();
 

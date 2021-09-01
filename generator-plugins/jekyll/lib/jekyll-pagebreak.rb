@@ -9,6 +9,7 @@ Jekyll::Hooks.register :site, :post_write do |site|
   executable = File.expand_path("../../ext/pagebreak/pagebreak", __FILE__)
   system("#{executable} -s #{site.dest} -o #{site.dest}")
 
-  Jekyll.logger.info "Jekyll Pagebreak:", "Done in #{(Time.now - started)*1000} milliseconds"
+  rounded_time = ((Time.now - started) * 1000).round
+  Jekyll.logger.info "Jekyll Pagebreak:", "Done in #{rounded_time} milliseconds"
 end
 
