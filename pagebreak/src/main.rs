@@ -135,7 +135,7 @@ impl SourcePage {
 
             let mut file_url: &str = &page_url_format
                 .replace(":url", relative_file_path.parent().unwrap().to_str().unwrap())
-                .replace(":num", &page_number.to_string());
+                .replace(":num", &(&page_number + 1).to_string());
             if file_url[0..1] == "/".to_string() {
                 file_url = &file_url[1..];
             }
