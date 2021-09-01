@@ -19,3 +19,5 @@ coverage
 target
 generator-plugins/jekyll/Makefile
 generator-plugins/jekyll/pagebreak
+large-test
+large-test-out

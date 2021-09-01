@@ -1,8 +1,11 @@
+use rayon::prelude::*;
 use kuchiki::{NodeRef, traits::TendrilSink};
 use clap::{Arg, App};
 use std::{env, fs, io::Read, path::PathBuf};
+use std::time::{Instant};
 
 fn main() {
+    let start = Instant::now();
     let matches = App::new("Pagebreak")
         .version("1.0")
         .author("CloudCannon")
@@ -40,20 +43,19 @@ fn main() {
     // let options = CopyOptions::new();
     // copy(&source, &output_path, &options).unwrap();
 
-    let mut pages: Vec<Page> = read_pages(&source)
-        .into_iter()
+    let mut pages: Vec<SourcePage> = read_pages(&source)
+        .into_par_iter()
         .filter(|page| page.contains_pagination())
         .collect();
-
-    pages.iter_mut().for_each(|page| {
-        page.parse();
-    });
 
     println!("Pagebreak: Found {} pages with pagination", pages.len());
 
     pages.iter_mut().for_each(|page| {
         page.paginate(&source, &output_path);
     });
+
+    let duration = start.elapsed();
+    println!("Pagebreak: Finished in {}.{} seconds", duration.as_secs(), duration.subsec_millis());
 }
 
 #[derive(Debug)]
@@ -62,27 +64,26 @@ struct PagebreakNode {
     parent: NodeRef,
 }
 
-struct Page {
+struct SourcePage {
     path: PathBuf,
     source: String,
-    parsed: Option<NodeRef>,
 }
 
-impl Page {
+impl SourcePage {
     fn contains_pagination(&self) -> bool {
         self.source.contains("data-pagebreak")
     }
 
-    fn parse(&mut self) {
-        let document = kuchiki::parse_html().one(self.source.as_str());
-        self.parsed = Some(document);
+    fn parse(&self) -> NodeRef {
+        kuchiki::parse_html().one(self.source.as_str())
     }
 
     fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
         let relative_file_path = self.path.strip_prefix(&input_path).unwrap();
+        let parsed = self.parse();
 
         let mut elements = vec![];
-        let pagebreak_element = self.parsed.as_ref().unwrap().select("[data-pagebreak]").unwrap().next().unwrap();
+        let pagebreak_element = parsed.select("[data-pagebreak]").unwrap().next().unwrap();
         let children = pagebreak_element.as_node().children();
         for element in children {
             // skip text nodes
@@ -134,7 +135,7 @@ impl Page {
             };
             let output_file_path = page_directory.join(relative_file_path.file_name().unwrap());
             fs::create_dir_all(&page_directory).unwrap();
-            self.parsed.as_ref().unwrap().serialize_to_file(output_file_path.as_path()).unwrap();
+            serialize(&parsed, output_file_path);
 
             paginated_elements.iter_mut().for_each(|element| {
                 element.detach();
@@ -143,7 +144,12 @@ impl Page {
     }
 }
 
-fn read_pages(path: &PathBuf) -> Vec<Page> {
+fn serialize(document: &NodeRef, path: PathBuf) {
+    let mut file = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+    document.serialize(&mut file).unwrap();
+}
+
+fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
     let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*.html"])
         .build()
         .unwrap();
@@ -156,10 +162,9 @@ fn read_pages(path: &PathBuf) -> Vec<Page> {
         let mut content = String::new();
         file.read_to_string(&mut content).unwrap();
 
-        pages.push(Page {
+        pages.push(SourcePage {
             path: path.to_path_buf(),
             source: content,
-            parsed: None,
         });
     }
     pages
