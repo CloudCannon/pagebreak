@@ -61,7 +61,6 @@ fn main() {
 #[derive(Debug)]
 struct PagebreakNode {
     element: NodeRef,
-    parent: NodeRef,
 }
 
 struct SourcePage {
@@ -84,13 +83,21 @@ impl SourcePage {
 
         let mut elements = vec![];
         let pagebreak_element = parsed.select("[data-pagebreak]").unwrap().next().unwrap();
-        let children = pagebreak_element.as_node().children();
+        let mut children = pagebreak_element.as_node().children();
+        let first_child = children.next().unwrap();
+
+        let mut separator = "\n".to_string();
+        if first_child.as_text().is_some() {
+            let val = first_child.as_text().unwrap().borrow();
+            separator = val.to_string();
+        } else if first_child.as_element().is_some() {
+            elements.push(PagebreakNode { element: first_child });
+        }
+
         for element in children {
             // skip text nodes
-            let is_element = element.as_element().is_some();
-            if is_element {
-                let parent = element.parent().unwrap();
-                elements.push(PagebreakNode { element: element, parent: parent });
+            if element.as_element().is_some() {
+                elements.push(PagebreakNode { element: element });
             }
         }
 
@@ -111,16 +118,19 @@ impl SourcePage {
         elements.iter_mut().for_each(|element| {
             element.element.detach()
         });
+        pagebreak_element.as_node().children().for_each(|child| {
+            child.detach();
+        });
         // let mut stdout = Box::new(std::io::stdout()) as Box<dyn std::io::Write>;
         // self.parsed.as_ref().unwrap().serialize(&mut stdout).unwrap();
 
         for page_number in 0..page_count {
-            let mut paginated_elements = vec![];
             let max_count = per_page.min(elements.len());
 
+            pagebreak_element.as_node().append(NodeRef::new_text(&separator));
             elements.drain(0..max_count).for_each(|element| {
-                element.parent.append(element.element);
-                paginated_elements.push(element.parent.children().last().unwrap());
+                pagebreak_element.as_node().append(element.element);
+                pagebreak_element.as_node().append(NodeRef::new_text(&separator));
             });
 
             let mut file_url: &str = &page_url_format
@@ -137,8 +147,8 @@ impl SourcePage {
             fs::create_dir_all(&page_directory).unwrap();
             serialize(&parsed, output_file_path);
 
-            paginated_elements.iter_mut().for_each(|element| {
-                element.detach();
+            pagebreak_element.as_node().children().for_each(|child| {
+                child.detach();
             });
         }
     }
