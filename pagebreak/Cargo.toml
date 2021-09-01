@@ -1,7 +1,11 @@
 [package]
 name = "pagebreak"
+description = "Framework-agnostic website pagination"
+homepage = "https://pagebreak.app/"
+repository = "https://github.com/CloudCannon/pagebreak/"
 version = "0.1.0"
 edition = "2018"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
