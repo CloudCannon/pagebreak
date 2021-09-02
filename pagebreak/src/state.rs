@@ -1,8 +1,8 @@
-use kuchiki::{ElementData, NodeDataRef, NodeRef};
-use std::{fs, path::PathBuf};
-use std::path::Component;
-use path_clean::PathClean;
 use crate::errors;
+use kuchiki::{ElementData, NodeDataRef, NodeRef};
+use path_clean::PathClean;
+use std::path::Component;
+use std::{fs, path::PathBuf};
 
 #[derive(Debug)]
 pub struct PagebreakNode {
@@ -49,7 +49,10 @@ impl PagebreakState {
         if self.page_container.is_some() {
             self.read_pagebreak_node();
             self.find_pagination_children();
-            self.page_count = Some((self.page_items.as_ref().unwrap().len() + self.per_page.unwrap() - 1) / self.per_page.unwrap());
+            self.page_count = Some(
+                (self.page_items.as_ref().unwrap().len() + self.per_page.unwrap() - 1)
+                    / self.per_page.unwrap(),
+            );
         }
     }
 
@@ -82,13 +85,22 @@ impl PagebreakState {
     }
 
     pub fn detach_children(&mut self) {
-        self.page_container.as_ref().unwrap().as_node().children().for_each(|child| {
-            child.detach();
-        });
+        self.page_container
+            .as_ref()
+            .unwrap()
+            .as_node()
+            .children()
+            .for_each(|child| {
+                child.detach();
+            });
     }
 
     pub fn reattach_child(&mut self, mut child: PagebreakNode) {
-        self.page_container.as_ref().unwrap().as_node().append(child.element.take().unwrap());
+        self.page_container
+            .as_ref()
+            .unwrap()
+            .as_node()
+            .append(child.element.take().unwrap());
     }
 
     fn find_pagebreak_node(&mut self) {
@@ -96,23 +108,32 @@ impl PagebreakState {
     }
 
     fn read_pagebreak_node(&mut self) {
-        let pagination_attributes = self.page_container.as_ref().unwrap().as_node().as_element().unwrap().attributes.borrow();
+        let pagination_attributes = self
+            .page_container
+            .as_ref()
+            .unwrap()
+            .as_node()
+            .as_element()
+            .unwrap()
+            .attributes
+            .borrow();
         self.page_url_format = pagination_attributes
             .get("data-pagebreak-url")
             .unwrap_or("./page/:num/")
             .to_string();
-        self.per_page = Some(pagination_attributes
-            .get("data-pagebreak")
-            .unwrap_or("2")
-            .parse::<usize>()
-            .unwrap()
+        self.per_page = Some(
+            pagination_attributes
+                .get("data-pagebreak")
+                .unwrap_or("2")
+                .parse::<usize>()
+                .unwrap(),
         );
     }
 
     fn find_pagination_children(&mut self) {
         let mut nodes = self.page_container.as_ref().unwrap().as_node().children();
         let mut children = vec![];
-    
+
         let first_child = nodes.next().unwrap();
         if first_child.as_text().is_some() {
             let val = first_child.as_text().unwrap().borrow();
@@ -120,19 +141,23 @@ impl PagebreakState {
         } else if first_child.as_element().is_some() {
             children.push(PagebreakNode::new(first_child));
         }
-    
+
         for element in nodes {
             // skip text nodes
             if element.as_element().is_some() {
                 children.push(PagebreakNode::new(element));
             }
         }
-    
+
         self.page_items = Some(children);
     }
 
     fn indent_for_next_element(&mut self) {
-        self.page_container.as_ref().unwrap().as_node().append(NodeRef::new_text(&self.dom_indentation));
+        self.page_container
+            .as_ref()
+            .unwrap()
+            .as_node()
+            .append(NodeRef::new_text(&self.dom_indentation));
     }
 
     fn get_file_url(&mut self, page_number: usize) -> Result<PathBuf, errors::PageError> {
@@ -143,7 +168,7 @@ impl PagebreakState {
                 let file_url = self.page_url_format.replace(":num", &page_number);
                 let file_path = PathBuf::from(file_url).join(self.file_path.file_name().unwrap());
                 let cleaned_path = self.file_path.parent().unwrap().join(file_path).clean();
-    
+
                 match cleaned_path.components().next().unwrap() {
                     Component::ParentDir => Err(errors::PageError {
                         code: errors::PageErrorCode::ParentDir,

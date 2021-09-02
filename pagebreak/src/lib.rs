@@ -143,7 +143,6 @@ fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
     pages
 }
 
-
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
