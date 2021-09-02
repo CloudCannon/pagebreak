@@ -1,11 +1,10 @@
-use kuchiki::ElementData;
-use kuchiki::{traits::TendrilSink, NodeDataRef, NodeRef};
-use path_clean::PathClean;
+use kuchiki::{traits::TendrilSink, NodeRef};
 use rayon::prelude::*;
-use std::path::Component::ParentDir;
-use std::{fs, io::Read, path::Path, path::PathBuf};
+use state::*;
+use std::{fs, io::Read, path::PathBuf};
 
 mod errors;
+mod state;
 
 pub struct PagebreakRunner {
     working_directory: PathBuf,
@@ -91,11 +90,6 @@ impl PagebreakRunner {
     }
 }
 
-#[derive(Debug)]
-struct PagebreakNode {
-    element: NodeRef,
-}
-
 struct SourcePage {
     path: PathBuf,
     source: Option<String>,
@@ -111,60 +105,15 @@ impl SourcePage {
     }
 
     fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
-        let relative_file_path = self.path.strip_prefix(&input_path).unwrap();
-        let parsed = self.parse();
+        let file_path = self.path.strip_prefix(&input_path).unwrap();
 
-        let pagebreak_element = parsed.select("[data-pagebreak]").unwrap().next().unwrap();
-        let (mut children, indentation) = find_pagination_children(&pagebreak_element);
-        let (page_url_format, per_page) = parse_pagebreak_element(&pagebreak_element);
+        let mut state =
+            PagebreakState::new(self.parse(), file_path.to_owned(), output_path.to_owned());
 
-        let page_count = (children.len() + per_page - 1) / per_page;
-
-        println!(
-            "Pagebreak: Found {} items on {:?}; Building {} pages of size {}",
-            children.len(),
-            relative_file_path,
-            page_count,
-            per_page
-        );
-
-        // Detach all elements from the pagination node.
-        pagebreak_element.as_node().children().for_each(|child| {
-            child.detach();
-        });
-
-        for page_number in 0..page_count {
-            let max_count = per_page.min(children.len());
-
-            children.drain(0..max_count).for_each(|element| {
-                indent_for_next_element(&pagebreak_element, &indentation);
-                pagebreak_element.as_node().append(element.element);
-            });
-            indent_for_next_element(&pagebreak_element, &indentation);
-
-            let cleaned_file_url = get_file_url(&relative_file_path, &page_url_format, page_number);
-            let file_url = match cleaned_file_url {
-                Ok(url) => url,
-                Err(err) => {
-                    eprintln!("{:?}\nPagebreak: Skipping errored page", err);
-                    return;
-                }
-            };
-
-            let output_file_path = output_path.join(file_url);
-            fs::create_dir_all(&output_file_path.parent().unwrap()).unwrap();
-            write_document_to_disk(&parsed, output_file_path);
-
-            pagebreak_element.as_node().children().for_each(|child| {
-                child.detach();
-            });
-        }
+        state.hydrate();
+        state.log_hydrated();
+        state.paginate();
     }
-}
-
-fn write_document_to_disk(document: &NodeRef, path: PathBuf) {
-    let mut file = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-    document.serialize(&mut file).unwrap();
 }
 
 fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
@@ -194,116 +143,43 @@ fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
     pages
 }
 
-fn find_pagination_children(element: &NodeDataRef<ElementData>) -> (Vec<PagebreakNode>, String) {
-    let mut children = vec![];
-    let mut nodes = element.as_node().children();
 
-    let first_child = nodes.next().unwrap();
-    let mut indentation = "\n".to_string();
-    if first_child.as_text().is_some() {
-        let val = first_child.as_text().unwrap().borrow();
-        indentation = val.to_string();
-    } else if first_child.as_element().is_some() {
-        children.push(PagebreakNode {
-            element: first_child,
-        });
-    }
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    for element in nodes {
-        // skip text nodes
-        if element.as_element().is_some() {
-            children.push(PagebreakNode { element: element });
-        }
-    }
+//     fn gfu(input: &PathBuf, url_format: &str, is_path: &str, when_num: usize) {
+//         assert_eq!(
+//             PathBuf::from(is_path),
+//             get_file_url(input, url_format, when_num).unwrap()
+//         );
+//     }
 
-    (children, indentation)
-}
+//     #[test]
+//     fn test_get_file_url() {
+//         let input = PathBuf::from("about/index.html");
+//         let url_format = "./page/:num/";
+//         gfu(&input, url_format, "about/index.html", 0);
+//         gfu(&input, url_format, "about/page/2/index.html", 1);
 
-fn parse_pagebreak_element(element: &NodeDataRef<ElementData>) -> (String, usize) {
-    let pagination_attributes = element.as_node().as_element().unwrap().attributes.borrow();
-    (
-        pagination_attributes
-            .get("data-pagebreak-url")
-            .unwrap_or("./page/:num/")
-            .to_string(),
-        pagination_attributes
-            .get("data-pagebreak")
-            .unwrap_or("2")
-            .parse::<usize>()
-            .unwrap(),
-    )
-}
+//         let input = PathBuf::from("index.html");
+//         let url_format = "./page/:num/";
+//         gfu(&input, url_format, "index.html", 0);
+//         gfu(&input, url_format, "page/2/index.html", 1);
 
-fn indent_for_next_element(element: &NodeDataRef<ElementData>, indentation: &String) {
-    element
-        .as_node()
-        .append(NodeRef::new_text(indentation));
-}
+//         let input = PathBuf::from("a/b/c/index.html");
+//         let url_format = "../../page/:num/";
+//         gfu(&input, url_format, "a/b/c/index.html", 0);
+//         gfu(&input, url_format, "a/page/2/index.html", 1);
+//     }
 
-fn get_file_url(
-    relative_file_path: &Path,
-    page_url_format: &str,
-    page_number: usize,
-) -> Result<PathBuf, errors::PageError> {
-    match page_number {
-        0 => Ok(PathBuf::from(relative_file_path)),
-        _ => {
-            let page_number = (&page_number + 1).to_string();
-            let file_url = page_url_format.replace(":num", &page_number);
-            let file_path = PathBuf::from(file_url).join(relative_file_path.file_name().unwrap());
-            let cleaned_path = relative_file_path.parent().unwrap().join(file_path).clean();
-
-            match cleaned_path.components().next().unwrap() {
-                ParentDir => Err(errors::PageError {
-                    code: errors::PageErrorCode::ParentDir,
-                    relative_path: relative_file_path.to_str().unwrap().to_string(),
-                    message: format!(
-                        "Pagination URL resolves outside of output directory: {:?}",
-                        cleaned_path
-                    ),
-                }),
-                _ => Ok(cleaned_path),
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn gfu(input: &PathBuf, url_format: &str, is_path: &str, when_num: usize) {
-        assert_eq!(
-            PathBuf::from(is_path),
-            get_file_url(input, url_format, when_num).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_get_file_url() {
-        let input = PathBuf::from("about/index.html");
-        let url_format = "./page/:num/";
-        gfu(&input, url_format, "about/index.html", 0);
-        gfu(&input, url_format, "about/page/2/index.html", 1);
-
-        let input = PathBuf::from("index.html");
-        let url_format = "./page/:num/";
-        gfu(&input, url_format, "index.html", 0);
-        gfu(&input, url_format, "page/2/index.html", 1);
-
-        let input = PathBuf::from("a/b/c/index.html");
-        let url_format = "../../page/:num/";
-        gfu(&input, url_format, "a/b/c/index.html", 0);
-        gfu(&input, url_format, "a/page/2/index.html", 1);
-    }
-
-    #[test]
-    fn test_bad_file_url() {
-        let input = PathBuf::from("index.html");
-        let url_format = "../../page/:num/";
-        assert_eq!(
-            errors::PageErrorCode::ParentDir,
-            get_file_url(&input, url_format, 1).unwrap_err().code
-        );
-    }
-}
+//     #[test]
+//     fn test_bad_file_url() {
+//         let input = PathBuf::from("index.html");
+//         let url_format = "../../page/:num/";
+//         assert_eq!(
+//             errors::PageErrorCode::ParentDir,
+//             get_file_url(&input, url_format, 1).unwrap_err().code
+//         );
+//     }
+// }
