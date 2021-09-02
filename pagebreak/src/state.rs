@@ -17,6 +17,35 @@ impl PagebreakNode {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum PagebreakControlType {
+    Next,
+    Previous,
+    None,
+}
+struct PagebreakControl {
+    element: NodeRef,
+    parent: Option<NodeRef>,
+    previous_sibling: Option<NodeRef>,
+    control_type: PagebreakControlType,
+}
+
+impl PagebreakControl {
+    pub fn new(
+        element: NodeRef,
+        control_type: PagebreakControlType,
+        parent: Option<NodeRef>,
+        previous_sibling: Option<NodeRef>,
+    ) -> Self {
+        PagebreakControl {
+            element: element,
+            parent,
+            previous_sibling,
+            control_type,
+        }
+    }
+}
+
 pub struct PagebreakState {
     pub document: NodeRef,
     file_path: PathBuf,
@@ -27,6 +56,7 @@ pub struct PagebreakState {
     per_page: Option<usize>,
     page_url_format: String,
     dom_indentation: String,
+    controls: Option<Vec<PagebreakControl>>,
 }
 
 impl PagebreakState {
@@ -41,6 +71,7 @@ impl PagebreakState {
             per_page: None,
             page_url_format: "./page/:num/".to_string(),
             dom_indentation: "\n".to_string(),
+            controls: None,
         }
     }
 
@@ -49,6 +80,7 @@ impl PagebreakState {
         if self.page_container.is_some() {
             self.read_pagebreak_node();
             self.find_pagination_children();
+            self.find_pagebreak_controls();
             self.page_count = Some(
                 (self.page_items.as_ref().unwrap().len() + self.per_page.unwrap() - 1)
                     / self.per_page.unwrap(),
@@ -69,6 +101,13 @@ impl PagebreakState {
             });
             self.indent_for_next_element();
 
+            if page_number == 0 {
+                self.detach_controls(PagebreakControlType::Previous);
+            }
+            if page_number == self.page_count.unwrap() - 1 {
+                self.detach_controls(PagebreakControlType::Next);
+            }
+
             let cleaned_file_url = self.get_file_url(page_number);
             let file_url = match cleaned_file_url {
                 Ok(url) => url,
@@ -81,6 +120,10 @@ impl PagebreakState {
             let output_file_path = self.output_path.join(file_url);
             fs::create_dir_all(&output_file_path.parent().unwrap()).unwrap();
             self.write_current_document_to_disk(output_file_path);
+
+            if page_number == 0 {
+                self.reattach_controls(PagebreakControlType::Previous);
+            }
         }
     }
 
@@ -150,6 +193,67 @@ impl PagebreakState {
         }
 
         self.page_items = Some(children);
+    }
+
+    fn find_pagebreak_controls(&mut self) {
+        let mut controls = vec![];
+        let elements: Vec<NodeDataRef<ElementData>> = self
+            .document
+            .select("[data-pagebreak-control]")
+            .unwrap()
+            .collect();
+        elements.into_iter().for_each(|element| {
+            let element_node = element.as_node();
+            let element_attributes = element_node.as_element().unwrap().attributes.borrow();
+            let element_type = element_attributes
+                .get("data-pagebreak-control")
+                .unwrap_or("none");
+            controls.push(PagebreakControl::new(
+                element_node.clone(),
+                match element_type {
+                    "next" => PagebreakControlType::Next,
+                    "prev" => PagebreakControlType::Previous,
+                    _ => PagebreakControlType::None,
+                },
+                element_node.parent(),
+                element_node.previous_sibling(),
+            ));
+        });
+        self.controls = Some(controls);
+    }
+
+    fn detach_controls(&mut self, control_type: PagebreakControlType) {
+        self.controls
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|control| control.control_type == control_type)
+            .for_each(|control| {
+                control.element.detach();
+            });
+    }
+
+    fn reattach_controls(&mut self, control_type: PagebreakControlType) {
+        self.controls
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|control| control.control_type == control_type)
+            .for_each(|control| {
+                if control.parent.is_some() {
+                    control
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .append(control.element.clone());
+                } else if control.previous_sibling.is_some() {
+                    control
+                        .previous_sibling
+                        .as_ref()
+                        .unwrap()
+                        .insert_after(control.element.clone())
+                }
+            });
     }
 
     fn indent_for_next_element(&mut self) {
