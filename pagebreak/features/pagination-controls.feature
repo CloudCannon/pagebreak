@@ -1,6 +1,5 @@
 Feature: Pagination Controls
 
-  @wip
   Scenario: If I have pagination controls, they should toggle when next/prev pages exist
     Given I have a "source/index.html" file with the body:
       """

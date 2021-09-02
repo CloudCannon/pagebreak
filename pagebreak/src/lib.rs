@@ -1,4 +1,5 @@
-use kuchiki::{traits::TendrilSink, NodeRef};
+use kuchiki::ElementData;
+use kuchiki::{traits::TendrilSink, NodeDataRef, NodeRef};
 use path_clean::PathClean;
 use rayon::prelude::*;
 use std::path::Component::ParentDir;
@@ -113,72 +114,33 @@ impl SourcePage {
         let relative_file_path = self.path.strip_prefix(&input_path).unwrap();
         let parsed = self.parse();
 
-        let mut elements = vec![];
         let pagebreak_element = parsed.select("[data-pagebreak]").unwrap().next().unwrap();
-        let mut children = pagebreak_element.as_node().children();
-        let first_child = children.next().unwrap();
+        let (mut children, indentation) = find_pagination_children(&pagebreak_element);
+        let (page_url_format, per_page) = parse_pagebreak_element(&pagebreak_element);
 
-        let mut separator = "\n".to_string();
-        if first_child.as_text().is_some() {
-            let val = first_child.as_text().unwrap().borrow();
-            separator = val.to_string();
-        } else if first_child.as_element().is_some() {
-            elements.push(PagebreakNode {
-                element: first_child,
-            });
-        }
-
-        for element in children {
-            // skip text nodes
-            if element.as_element().is_some() {
-                elements.push(PagebreakNode { element: element });
-            }
-        }
-
-        let pagination_attributes = &pagebreak_element
-            .as_node()
-            .as_element()
-            .unwrap()
-            .attributes
-            .borrow();
-        let page_url_format = pagination_attributes
-            .get("data-pagebreak-url")
-            .unwrap_or("./page/:num/");
-        let per_page = pagination_attributes
-            .get("data-pagebreak")
-            .unwrap_or("2")
-            .parse::<usize>()
-            .unwrap();
-        let page_count = (elements.len() + per_page - 1) / per_page;
+        let page_count = (children.len() + per_page - 1) / per_page;
 
         println!(
             "Pagebreak: Found {} items on {:?}; Building {} pages of size {}",
-            elements.len(),
+            children.len(),
             relative_file_path,
             page_count,
             per_page
         );
 
-        // Detach all elements from their parents.
-        elements
-            .iter_mut()
-            .for_each(|element| element.element.detach());
+        // Detach all elements from the pagination node.
         pagebreak_element.as_node().children().for_each(|child| {
             child.detach();
         });
 
         for page_number in 0..page_count {
-            let max_count = per_page.min(elements.len());
+            let max_count = per_page.min(children.len());
 
-            pagebreak_element
-                .as_node()
-                .append(NodeRef::new_text(&separator));
-            elements.drain(0..max_count).for_each(|element| {
+            children.drain(0..max_count).for_each(|element| {
+                indent_for_next_element(&pagebreak_element, &indentation);
                 pagebreak_element.as_node().append(element.element);
-                pagebreak_element
-                    .as_node()
-                    .append(NodeRef::new_text(&separator));
             });
+            indent_for_next_element(&pagebreak_element, &indentation);
 
             let cleaned_file_url = get_file_url(&relative_file_path, &page_url_format, page_number);
             let file_url = match cleaned_file_url {
@@ -230,6 +192,52 @@ fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
     });
 
     pages
+}
+
+fn find_pagination_children(element: &NodeDataRef<ElementData>) -> (Vec<PagebreakNode>, String) {
+    let mut children = vec![];
+    let mut nodes = element.as_node().children();
+
+    let first_child = nodes.next().unwrap();
+    let mut indentation = "\n".to_string();
+    if first_child.as_text().is_some() {
+        let val = first_child.as_text().unwrap().borrow();
+        indentation = val.to_string();
+    } else if first_child.as_element().is_some() {
+        children.push(PagebreakNode {
+            element: first_child,
+        });
+    }
+
+    for element in nodes {
+        // skip text nodes
+        if element.as_element().is_some() {
+            children.push(PagebreakNode { element: element });
+        }
+    }
+
+    (children, indentation)
+}
+
+fn parse_pagebreak_element(element: &NodeDataRef<ElementData>) -> (String, usize) {
+    let pagination_attributes = element.as_node().as_element().unwrap().attributes.borrow();
+    (
+        pagination_attributes
+            .get("data-pagebreak-url")
+            .unwrap_or("./page/:num/")
+            .to_string(),
+        pagination_attributes
+            .get("data-pagebreak")
+            .unwrap_or("2")
+            .parse::<usize>()
+            .unwrap(),
+    )
+}
+
+fn indent_for_next_element(element: &NodeDataRef<ElementData>, indentation: &String) {
+    element
+        .as_node()
+        .append(NodeRef::new_text(indentation));
 }
 
 fn get_file_url(

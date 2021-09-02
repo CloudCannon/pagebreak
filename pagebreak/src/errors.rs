@@ -13,11 +13,7 @@ pub struct PageError {
 
 impl fmt::Display for PageError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Error on page {}: {}",
-            self.relative_path, self.message
-        )
+        write!(f, "Error on page {}: {}", self.relative_path, self.message)
     }
 }
 
