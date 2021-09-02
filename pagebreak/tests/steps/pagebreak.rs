@@ -10,7 +10,7 @@ pub fn steps() -> Steps<crate::PagebreakWorld> {
 
     steps
         .given_regex(
-            r#"^I have an? "(.*)" file with the content:$"#,
+            r#"^I have an? (?:"|')(.*)(?:"|') file with the content:$"#,
             |mut world, ctx| {
                 if world.tmp_dir.is_none() {
                     world.tmp_dir = Some(tempdir().unwrap());
@@ -25,7 +25,7 @@ pub fn steps() -> Steps<crate::PagebreakWorld> {
             },
         )
         .given_regex(
-            r#"^I have an? "(.*)" file with the body:$"#,
+            r#"^I have an? (?:"|')(.*)(?:"|') file with the body:$"#,
             |mut world, ctx| {
                 if world.tmp_dir.is_none() {
                     world.tmp_dir = Some(tempdir().unwrap());
@@ -48,24 +48,24 @@ pub fn steps() -> Steps<crate::PagebreakWorld> {
 
             world
         })
-        .then_regex(r#"I should see "(.*)" in "(.*)"$"#, |world, ctx| {
+        .then_regex(r#"I should see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#, |world, ctx| {
             let contents = read_file(&world, &ctx.matches[2]);
             assert!(contents.contains(&ctx.matches[1]));
 
             world
         })
-        .then_regex(r#"I should not see "(.*)" in "(.*)"$"#, |world, ctx| {
+        .then_regex(r#"I should not see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#, |world, ctx| {
             let contents = read_file(&world, &ctx.matches[2]);
             assert!(!contents.contains(&ctx.matches[1]));
 
             world
         })
-        .then_regex(r#"I should see the file "(.*)"$"#, |world, ctx| {
+        .then_regex(r#"I should see the file (?:"|')(.*)(?:"|')$"#, |world, ctx| {
             assert!(check_file_exists(&world, &ctx.matches[1]));
 
             world
         })
-        .then_regex(r#"I should not see the file "(.*)"$"#, |world, ctx| {
+        .then_regex(r#"I should not see the file (?:"|')(.*)(?:"|')$"#, |world, ctx| {
             assert!(!check_file_exists(&world, &ctx.matches[1]));
 
             world

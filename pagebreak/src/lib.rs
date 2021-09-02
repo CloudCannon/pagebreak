@@ -107,8 +107,11 @@ impl SourcePage {
     fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
         let file_path = self.path.strip_prefix(&input_path).unwrap();
 
-        let mut state =
-            PagebreakState::new(self.parse(), file_path.to_owned(), output_path.to_owned());
+        let mut state = PagebreakState::new(
+            Some(self.parse()),
+            file_path.to_owned(),
+            output_path.to_owned(),
+        );
 
         state.hydrate();
         state.log_hydrated();

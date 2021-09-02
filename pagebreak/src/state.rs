@@ -1,6 +1,7 @@
 use crate::errors;
 use kuchiki::{ElementData, NodeDataRef, NodeRef};
 use path_clean::PathClean;
+use pathdiff;
 use std::path::Component;
 use std::{fs, path::PathBuf};
 
@@ -47,7 +48,7 @@ impl PagebreakControl {
 }
 
 pub struct PagebreakState {
-    pub document: NodeRef,
+    pub document: Option<NodeRef>,
     file_path: PathBuf,
     output_path: PathBuf,
     page_container: Option<NodeDataRef<ElementData>>,
@@ -60,7 +61,7 @@ pub struct PagebreakState {
 }
 
 impl PagebreakState {
-    pub fn new(document: NodeRef, file_path: PathBuf, output_path: PathBuf) -> Self {
+    pub fn new(document: Option<NodeRef>, file_path: PathBuf, output_path: PathBuf) -> Self {
         PagebreakState {
             document: document,
             file_path: file_path,
@@ -89,6 +90,9 @@ impl PagebreakState {
     }
 
     pub fn paginate(&mut self) {
+        if self.page_container.is_none() {
+            return;
+        };
         for page_number in 0..self.page_count.unwrap() {
             self.detach_children();
             let remaining_items: &mut Vec<PagebreakNode> = self.page_items.as_mut().unwrap();
@@ -103,9 +107,16 @@ impl PagebreakState {
 
             if page_number == 0 {
                 self.detach_controls(PagebreakControlType::Previous);
+            } else {
+                let relative_href = self.relative_path_between_pages(page_number, page_number - 1);
+                self.update_control_href(PagebreakControlType::Previous, relative_href);
             }
+
             if page_number == self.page_count.unwrap() - 1 {
                 self.detach_controls(PagebreakControlType::Next);
+            } else {
+                let relative_href = self.relative_path_between_pages(page_number, page_number + 1);
+                self.update_control_href(PagebreakControlType::Next, relative_href);
             }
 
             let cleaned_file_url = self.get_file_url(page_number);
@@ -147,11 +158,17 @@ impl PagebreakState {
     }
 
     fn find_pagebreak_node(&mut self) {
-        self.page_container = self.document.select("[data-pagebreak]").unwrap().next();
+        self.page_container = self
+            .document
+            .as_ref()
+            .unwrap()
+            .select("[data-pagebreak]")
+            .unwrap()
+            .next();
     }
 
     fn read_pagebreak_node(&mut self) {
-        let pagination_attributes = self
+        let mut pagination_attributes = self
             .page_container
             .as_ref()
             .unwrap()
@@ -159,11 +176,12 @@ impl PagebreakState {
             .as_element()
             .unwrap()
             .attributes
-            .borrow();
+            .borrow_mut();
         self.page_url_format = pagination_attributes
             .get("data-pagebreak-url")
             .unwrap_or("./page/:num/")
             .to_string();
+        pagination_attributes.remove("data-pagebreak-url");
         self.per_page = Some(
             pagination_attributes
                 .get("data-pagebreak")
@@ -171,6 +189,7 @@ impl PagebreakState {
                 .parse::<usize>()
                 .unwrap(),
         );
+        pagination_attributes.remove("data-pagebreak");
     }
 
     fn find_pagination_children(&mut self) {
@@ -199,22 +218,26 @@ impl PagebreakState {
         let mut controls = vec![];
         let elements: Vec<NodeDataRef<ElementData>> = self
             .document
+            .as_ref()
+            .unwrap()
             .select("[data-pagebreak-control]")
             .unwrap()
             .collect();
         elements.into_iter().for_each(|element| {
             let element_node = element.as_node();
-            let element_attributes = element_node.as_element().unwrap().attributes.borrow();
-            let element_type = element_attributes
+            let mut element_attributes = element_node.as_element().unwrap().attributes.borrow_mut();
+            let element_type = match element_attributes
                 .get("data-pagebreak-control")
-                .unwrap_or("none");
+                .unwrap_or("none")
+            {
+                "next" => PagebreakControlType::Next,
+                "prev" => PagebreakControlType::Previous,
+                _ => PagebreakControlType::None,
+            };
+            element_attributes.remove("data-pagebreak-control");
             controls.push(PagebreakControl::new(
                 element_node.clone(),
-                match element_type {
-                    "next" => PagebreakControlType::Next,
-                    "prev" => PagebreakControlType::Previous,
-                    _ => PagebreakControlType::None,
-                },
+                element_type,
                 element_node.parent(),
                 element_node.previous_sibling(),
             ));
@@ -240,19 +263,37 @@ impl PagebreakState {
             .iter()
             .filter(|control| control.control_type == control_type)
             .for_each(|control| {
-                if control.parent.is_some() {
-                    control
-                        .parent
-                        .as_ref()
-                        .unwrap()
-                        .append(control.element.clone());
-                } else if control.previous_sibling.is_some() {
+                if control.previous_sibling.is_some() {
                     control
                         .previous_sibling
                         .as_ref()
                         .unwrap()
                         .insert_after(control.element.clone())
+                } else if control.parent.is_some() {
+                    control
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .prepend(control.element.clone());
                 }
+            });
+    }
+
+    fn update_control_href(&mut self, control_type: PagebreakControlType, new_href: String) {
+        self.controls
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|control| control.control_type == control_type)
+            .for_each(|control| {
+                let mut attributes = control
+                    .element
+                    .as_element()
+                    .unwrap()
+                    .attributes
+                    .borrow_mut();
+                attributes.remove("href");
+                attributes.insert("href", new_href.clone());
             });
     }
 
@@ -288,9 +329,27 @@ impl PagebreakState {
         }
     }
 
+    fn relative_path_between_pages(&mut self, from: usize, to: usize) -> String {
+        let from_path = self.get_file_url(from).unwrap();
+        let to_path = self.get_file_url(to).unwrap();
+        let mut relative_path =
+            pathdiff::diff_paths(to_path.parent().unwrap(), from_path.parent().unwrap()).unwrap();
+        match relative_path.components().next().unwrap() {
+            Component::Normal(_) => {
+                relative_path = PathBuf::from("./").join(relative_path);
+            }
+            _ => {}
+        };
+        format!("{}/", relative_path.to_str().unwrap()).to_string()
+    }
+
     fn write_current_document_to_disk(&self, path: PathBuf) {
         let mut file = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-        self.document.serialize(&mut file).unwrap();
+        self.document
+            .as_ref()
+            .unwrap()
+            .serialize(&mut file)
+            .unwrap();
     }
 }
 
@@ -306,6 +365,81 @@ impl PagebreakStatusLogging for PagebreakState {
             self.file_path,
             self.page_count.unwrap(),
             self.per_page.unwrap()
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_state() -> PagebreakState {
+        PagebreakState::new(None, PathBuf::from("index.html"), PathBuf::from("output"))
+    }
+
+    #[test]
+    fn test_get_file_url() {
+        let mut state = new_state();
+        assert_eq!(PathBuf::from("index.html"), state.get_file_url(0).unwrap(),);
+        assert_eq!(
+            PathBuf::from("page/2/index.html"),
+            state.get_file_url(1).unwrap(),
+        );
+
+        state.file_path = PathBuf::from("about/index.html");
+        assert_eq!(
+            PathBuf::from("about/index.html"),
+            state.get_file_url(0).unwrap(),
+        );
+        assert_eq!(
+            PathBuf::from("about/page/2/index.html"),
+            state.get_file_url(1).unwrap(),
+        );
+
+        state.file_path = PathBuf::from("a/b/c/index.html");
+        state.page_url_format = "../../page/:num/".to_string();
+        assert_eq!(
+            PathBuf::from("a/page/2/index.html"),
+            state.get_file_url(1).unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_bad_file_url() {
+        let mut state = new_state();
+        state.page_url_format = "../page/:num/".to_string();
+        assert_eq!(
+            errors::PageErrorCode::ParentDir,
+            state.get_file_url(1).unwrap_err().code,
+        );
+    }
+
+    #[test]
+    fn test_relative_pagination_urls() {
+        let mut state = new_state();
+        assert_eq!(
+            "./page/2/".to_string(),
+            state.relative_path_between_pages(0, 1)
+        );
+        assert_eq!(
+            "../../".to_string(),
+            state.relative_path_between_pages(1, 0)
+        );
+        assert_eq!("../3/".to_string(), state.relative_path_between_pages(1, 2));
+
+        state.file_path = PathBuf::from("file/main/index.html");
+        state.page_url_format = "../pages/:num/page/".to_string();
+        assert_eq!(
+            "../pages/2/page/".to_string(),
+            state.relative_path_between_pages(0, 1)
+        );
+        assert_eq!(
+            "../../../main/".to_string(),
+            state.relative_path_between_pages(1, 0)
+        );
+        assert_eq!(
+            "../../3/page/".to_string(),
+            state.relative_path_between_pages(1, 2)
         );
     }
 }

@@ -620,6 +620,7 @@ dependencies = [
  "globwalk",
  "kuchiki",
  "path-clean",
+ "pathdiff",
  "rayon",
  "tempfile",
 ]
