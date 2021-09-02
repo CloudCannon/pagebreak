@@ -13,9 +13,7 @@ impl cucumber_rust::World for PagebreakWorld {
     type Error = Infallible;
 
     async fn new() -> Result<Self, Infallible> {
-        Ok(Self {
-            tmp_dir: None,
-        })
+        Ok(Self { tmp_dir: None })
     }
 }
 
@@ -25,7 +23,8 @@ mod steps;
 fn main() {
     let runner = cucumber_rust::Cucumber::<PagebreakWorld>::new()
         .features(&["./features"])
-        .steps(steps::pagebreak::steps());
+        .steps(steps::pagebreak::steps())
+        .enable_capture(true);
 
     futures::executor::block_on(runner.run());
 }
