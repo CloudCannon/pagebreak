@@ -24,6 +24,8 @@ enum PagebreakControlType {
     Previous,
     NoNext,
     NoPrevious,
+    Current,
+    Total,
     None,
 }
 struct PagebreakControl {
@@ -107,7 +109,7 @@ impl PagebreakState {
             });
             self.indent_for_next_element();
 
-            self.update_controls_for_page(page_number);
+            self.update_controls_for_page(page_number, self.page_count.unwrap());
 
             let cleaned_file_url = self.get_file_url(page_number);
             let file_url = match cleaned_file_url {
@@ -222,6 +224,8 @@ impl PagebreakState {
                 "prev" => PagebreakControlType::Previous,
                 "!next" => PagebreakControlType::NoNext,
                 "!prev" => PagebreakControlType::NoPrevious,
+                "current" => PagebreakControlType::Current,
+                "total" => PagebreakControlType::Total,
                 _ => PagebreakControlType::None,
             };
             element_attributes.remove("data-pagebreak-control");
@@ -235,19 +239,22 @@ impl PagebreakState {
         self.controls = Some(controls);
     }
 
-    fn update_controls_for_page(&mut self, page_number: usize) {
-        if page_number == 0 {
+    fn update_controls_for_page(&mut self, page_index: usize, total_pages: usize) {
+        self.update_control_text(PagebreakControlType::Current, (page_index+1).to_string());
+        self.update_control_text(PagebreakControlType::Total, total_pages.to_string());
+
+        if page_index == 0 {
             self.detach_control(PagebreakControlType::Previous);
         } else {
-            let relative_href = self.relative_path_between_pages(page_number, page_number - 1);
+            let relative_href = self.relative_path_between_pages(page_index, page_index - 1);
             self.update_control_href(PagebreakControlType::Previous, relative_href);
             self.detach_control(PagebreakControlType::NoPrevious);
         }
 
-        if page_number == self.page_count.unwrap() - 1 {
+        if page_index == self.page_count.unwrap() - 1 {
             self.detach_control(PagebreakControlType::Next);
         } else {
-            let relative_href = self.relative_path_between_pages(page_number, page_number + 1);
+            let relative_href = self.relative_path_between_pages(page_index, page_index + 1);
             self.update_control_href(PagebreakControlType::Next, relative_href);
             self.detach_control(PagebreakControlType::NoNext);
         }
@@ -301,6 +308,19 @@ impl PagebreakState {
                     .borrow_mut();
                 attributes.remove("href");
                 attributes.insert("href", new_href.clone());
+            });
+    }
+
+    fn update_control_text(&mut self, control_type: PagebreakControlType, new_text: String) {
+        self.controls
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|control| control.control_type == control_type)
+            .for_each(|control| {
+                let node_ref = &control.element;
+                node_ref.children().for_each(|child| child.detach());
+                node_ref.append(NodeRef::new_text(&new_text));
             });
     }
 
