@@ -6,7 +6,7 @@
 
 - [Pagebreak](#pagebreak)
   - [Intro](#intro)
-  - [Quick Start](#quick-start)
+  - [Page Size](#page-size)
   - [Custom URLs](#custom-urls)
   - [Pagination Controls](#pagination-controls)
   - [Example](#example)
@@ -21,7 +21,7 @@ The primary goal of Pagebreak is to decouple pagination logic from templating. U
 - Render components in a component browser, (e.g. with Storybook or Bookshop), without having to mock pagination tags.
 - Have editors configure pagination settings on a per-component basis.
 
-## Quick Start
+## Page Size
 
 To paginate a section on your website, add the `data-pagebreak` tag to the container element, and specify how many items you want per page. Then, in your static site generator of choice, output **all** items onto the page.
 
