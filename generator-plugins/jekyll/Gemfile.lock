@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    jekyll-pagebreak (0.2.0)
+    jekyll-pagebreak (0.3.0)
       jekyll (>= 3.7, < 5.0)
 
 GEM
@@ -16,7 +16,7 @@ GEM
       eventmachine (>= 0.12.9)
       http_parser.rb (~> 0.6.0)
     eventmachine (1.2.7)
-    ffi (1.15.3)
+    ffi (1.15.4)
     forwardable-extended (2.6.0)
     http_parser.rb (0.6.0)
     i18n (1.8.10)
