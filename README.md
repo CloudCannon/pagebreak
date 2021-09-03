@@ -69,6 +69,15 @@ Next and previous links can be inserted with the `data-pagebreak-control` tag.
 
 Pagebreak will pick these up and update the URLs to link each page to its siblings. In the instance where there is no next or previous page, the element will be removed from the page.
 
+If you want to toggle behavior when a next or previous page doesn't exist, you can use the following tags:
+
+```html
+<span data-pagebreak-control="!prev">No Previous Page</span>
+<span data-pagebreak-control="!next">No Next Page</span>
+```
+
+These elements will be removed from the page if their respective pages exist. 
+
 ## Example
 
 Given an `items/index.html` file:
