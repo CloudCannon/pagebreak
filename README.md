@@ -2,6 +2,18 @@
 
 > :warning: Pagebreak is in an early stage of development, and breaking changes are likely before a 1.0 release
 
+# Table of contents
+
+- [Pagebreak](#pagebreak)
+  - [Intro](#intro)
+  - [Quick Start](#quick-start)
+  - [Custom URLs](#custom-urls)
+  - [Pagination Controls](#pagination-controls)
+  - [Example](#example)
+  - [Usage](#usage)
+
+## Intro
+
 Pagebreak is an open-source tool for implementing pagination on any static website output. It is tooling abnostic, and chains onto the end of a complete static site build.
 
 The primary goal of Pagebreak is to decouple pagination logic from templating. Using Pagebreak means you can:
