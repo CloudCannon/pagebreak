@@ -59,8 +59,10 @@ For a given `dist/index.html` file, this would output:
 The url will be resolved relative to the html file that is being paginated.
 
 ## Pagination Controls
+Pagination controls are implemented with the `data-pagebreak-control` attribute.
 
-Next and previous links can be inserted with the `data-pagebreak-control` tag.
+### Next / Previous Links
+Next and previous links can be inserted with the `prev` and `next` controls.
 
 ```html
 <a data-pagebreak-control="prev">Newer Items</a>
@@ -69,7 +71,8 @@ Next and previous links can be inserted with the `data-pagebreak-control` tag.
 
 Pagebreak will pick these up and update the URLs to link each page to its siblings. In the instance where there is no next or previous page, the element will be removed from the page.
 
-If you want to toggle behavior when a next or previous page doesn't exist, you can use the following tags:
+### Disable Controls
+If you want to toggle behavior when a next or previous page doesn't exist, you can use the `!prev` and `!next` controls.
 
 ```html
 <span data-pagebreak-control="!prev">No Previous Page</span>
@@ -77,6 +80,18 @@ If you want to toggle behavior when a next or previous page doesn't exist, you c
 ```
 
 These elements will be removed from the page if their respective pages exist. 
+
+### Page Numbering
+If you want to show current and total page counts, you can use the `current` and `total` controls.
+
+```html
+<p>
+    Page 
+    <span data-pagebreak-control="current">1</span>
+    of
+    <span data-pagebreak-control="total">1</span>
+</p>
+```
 
 ## Example
 
