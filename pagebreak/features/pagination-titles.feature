@@ -1,4 +1,4 @@
-Feature: Pagination URLs
+Feature: Pagination Titles
 
   Scenario: If I specify a data-pagebreak-title, I should get custom titles
     Given I have a "source/index.html" file with the content:
