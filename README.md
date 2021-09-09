@@ -58,6 +58,27 @@ For a given `dist/index.html` file, this would output:
 
 The url will be resolved relative to the html file that is being paginated.
 
+## Updating Title & Meta Tags
+By default, Pagebreak will update the `<title>` element on paginated pages, as well as the `og:title` and `twitter:title` meta elements. For a given title "Blog", the default page titles will be of the form "Blog | Page 2".
+
+You can customise this title with the `data-pagebreak-meta` tag:
+
+```html
+<head>
+    <title>Blog</title>
+</head>
+<body>
+    <section
+        data-pagebreak="1"
+        data-pagebreak-meta=":content Page #:num">
+        <article>Item 1</article>
+        <article>Item 2</article>
+    </section>
+</body>
+```
+
+With the above example, page 2 would now contain `<title>Blog Page #2</title>`. The first page will always remain unchanged. 
+
 ## Pagination Controls
 Pagination controls are implemented with the `data-pagebreak-control` attribute.
 
