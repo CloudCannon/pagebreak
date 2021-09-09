@@ -113,8 +113,8 @@ impl PagebreakState {
             self.indent_for_next_element();
 
             self.update_tag("title", page_number);
-            self.update_meta_tag("og:title", page_number);
-            self.update_meta_tag("twitter:title", page_number);
+            self.update_meta_tag("property", "og:title", page_number);
+            self.update_meta_tag("property", "twitter:title", page_number);
 
             self.update_controls_for_page(page_number, self.page_count.unwrap());
 
@@ -277,14 +277,14 @@ impl PagebreakState {
         }
     }
 
-    fn update_meta_tag(&mut self, name: &str, page_index: usize) {
+    fn update_meta_tag(&mut self, attribute: &str, name: &str, page_index: usize) {
         if page_index == 0 {
             return;
         }
 
         if let Ok(elements) = self
             .document
-            .select(&format!("meta[property=\"{}\"]", name))
+            .select(&format!("meta[{}=\"{}\"]", attribute, name))
         {
             elements.for_each(|meta_tag| {
                 let mut meta_attributes = meta_tag
