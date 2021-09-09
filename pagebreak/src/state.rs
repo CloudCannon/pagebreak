@@ -116,6 +116,8 @@ impl PagebreakState {
             self.update_meta_tag("property", "og:title", page_number);
             self.update_meta_tag("property", "twitter:title", page_number);
 
+            self.update_links("href", page_number);
+
             self.update_controls_for_page(page_number, self.page_count.unwrap());
 
             let cleaned_file_url = self.get_file_url(page_number);
@@ -252,6 +254,34 @@ impl PagebreakState {
                 ));
             });
         self.controls = Some(controls);
+    }
+
+    fn update_links(&mut self, property: &str, page_index: usize) {
+        if page_index == 0 {
+            return;
+        }
+
+        if let Ok(elements) = self.document.select(&format!("[{}]", property)) {
+            elements.for_each(|element| {
+                let mut attributes = element
+                    .as_node()
+                    .as_element()
+                    .unwrap()
+                    .attributes
+                    .borrow_mut();
+                let url = attributes.get(property).unwrap();
+                if !url.starts_with("http://")
+                    && !url.starts_with("https://")
+                    && !url.starts_with('/')
+                {
+                    let mut resolved_url = self.relative_path_between_pages(page_index, 0);
+                    resolved_url.push_str(url);
+
+                    attributes.remove(property);
+                    attributes.insert(property, resolved_url);
+                }
+            });
+        }
     }
 
     fn update_tag(&mut self, name: &str, page_index: usize) {
