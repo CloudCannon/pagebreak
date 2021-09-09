@@ -24,3 +24,29 @@ Feature: Pagination URLs
     When I run Pagebreak
     Then I should see the file "output/red/blue/yellow/index.html"
     And I should see the file "output/red/green/2/index.html"
+
+  Scenario: I should not have to specify a trailing slash on the data-pagebreak-url
+    Given I have a "source/index.html" file with the body:
+      """
+      <section data-pagebreak="1" data-pagebreak-url="./page/:num">
+        <p>Item 1</p>
+        <p>Item 2</p>
+      </section>
+      """
+    When I run Pagebreak
+    Then I should see the file "output/index.html"
+    And I should see the file "output/page/2/index.html"
+    But I should not see the file "output/page/2.html"
+
+  Scenario: If I provide a named HTML page, I should get a named pagination page
+    Given This should be implemented in issue #4
+    Given I have a "source/about.html" file with the body:
+      """
+      <section data-pagebreak="1" data-pagebreak-url="./page/:num/">
+        <p>Item 1</p>
+        <p>Item 2</p>
+      </section>
+      """
+    When I run Pagebreak
+    Then I should see the file "output/about.html"
+    And I should see the file "output/about/page/2.html"
