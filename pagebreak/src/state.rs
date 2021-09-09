@@ -1,7 +1,6 @@
 use crate::errors;
 use kuchiki::{ElementData, NodeDataRef, NodeRef};
 use path_clean::PathClean;
-use pathdiff;
 use std::path::Component;
 use std::{fs, path::PathBuf};
 
@@ -43,7 +42,7 @@ impl PagebreakControl {
         previous_sibling: Option<NodeRef>,
     ) -> Self {
         PagebreakControl {
-            element: element,
+            element,
             parent,
             previous_sibling,
             control_type,
@@ -52,7 +51,7 @@ impl PagebreakControl {
 }
 
 pub struct PagebreakState {
-    pub document: Option<NodeRef>,
+    pub document: NodeRef,
     file_path: PathBuf,
     output_path: PathBuf,
     page_container: Option<NodeDataRef<ElementData>>,
@@ -60,21 +59,23 @@ pub struct PagebreakState {
     page_count: Option<usize>,
     per_page: Option<usize>,
     page_url_format: String,
+    page_meta_format: String,
     dom_indentation: String,
     controls: Option<Vec<PagebreakControl>>,
 }
 
 impl PagebreakState {
-    pub fn new(document: Option<NodeRef>, file_path: PathBuf, output_path: PathBuf) -> Self {
+    pub fn new(document: NodeRef, file_path: PathBuf, output_path: PathBuf) -> Self {
         PagebreakState {
-            document: document,
-            file_path: file_path,
-            output_path: output_path,
+            document,
+            file_path,
+            output_path,
             page_container: None,
             page_items: None,
             page_count: None,
             per_page: None,
             page_url_format: "./page/:num/".to_string(),
+            page_meta_format: ":content | Page :num".to_string(),
             dom_indentation: "\n".to_string(),
             controls: None,
         }
@@ -83,6 +84,7 @@ impl PagebreakState {
     pub fn hydrate(&mut self) {
         self.find_pagebreak_node();
         if self.page_container.is_some() {
+            self.read_meta_format();
             self.read_pagebreak_node();
             self.find_pagination_children();
             self.find_pagebreak_controls();
@@ -107,7 +109,12 @@ impl PagebreakState {
                 self.indent_for_next_element();
                 self.reattach_child(element);
             });
+
             self.indent_for_next_element();
+
+            self.update_tag("title", page_number);
+            self.update_meta_tag("property", "og:title", page_number);
+            self.update_meta_tag("property", "twitter:title", page_number);
 
             self.update_controls_for_page(page_number, self.page_count.unwrap());
 
@@ -147,14 +154,25 @@ impl PagebreakState {
             .append(child.element.take().unwrap());
     }
 
-    fn find_pagebreak_node(&mut self) {
-        self.page_container = self
-            .document
+    fn read_meta_format(&mut self) {
+        let mut attributes = self
+            .page_container
             .as_ref()
             .unwrap()
-            .select("[data-pagebreak]")
+            .as_node()
+            .as_element()
             .unwrap()
-            .next();
+            .attributes
+            .borrow_mut();
+
+        if let Some(format) = attributes.get("data-pagebreak-meta") {
+            self.page_meta_format = format.to_string();
+            attributes.remove("data-pagebreak-meta");
+        }
+    }
+
+    fn find_pagebreak_node(&mut self) {
+        self.page_container = self.document.select("[data-pagebreak]").unwrap().next();
     }
 
     fn read_pagebreak_node(&mut self) {
@@ -206,41 +224,90 @@ impl PagebreakState {
 
     fn find_pagebreak_controls(&mut self) {
         let mut controls = vec![];
-        let elements: Vec<NodeDataRef<ElementData>> = self
-            .document
-            .as_ref()
-            .unwrap()
+        self.document
             .select("[data-pagebreak-control]")
             .unwrap()
-            .collect();
-        elements.into_iter().for_each(|element| {
-            let element_node = element.as_node();
-            let mut element_attributes = element_node.as_element().unwrap().attributes.borrow_mut();
-            let element_type = match element_attributes
-                .get("data-pagebreak-control")
-                .unwrap_or("none")
-            {
-                "next" => PagebreakControlType::Next,
-                "prev" => PagebreakControlType::Previous,
-                "!next" => PagebreakControlType::NoNext,
-                "!prev" => PagebreakControlType::NoPrevious,
-                "current" => PagebreakControlType::Current,
-                "total" => PagebreakControlType::Total,
-                _ => PagebreakControlType::None,
-            };
-            element_attributes.remove("data-pagebreak-control");
-            controls.push(PagebreakControl::new(
-                element_node.clone(),
-                element_type,
-                element_node.parent(),
-                element_node.previous_sibling(),
-            ));
-        });
+            .for_each(|element| {
+                let element_node = element.as_node();
+                let mut element_attributes =
+                    element_node.as_element().unwrap().attributes.borrow_mut();
+                let element_type = match element_attributes
+                    .get("data-pagebreak-control")
+                    .unwrap_or("none")
+                {
+                    "next" => PagebreakControlType::Next,
+                    "prev" => PagebreakControlType::Previous,
+                    "!next" => PagebreakControlType::NoNext,
+                    "!prev" => PagebreakControlType::NoPrevious,
+                    "current" => PagebreakControlType::Current,
+                    "total" => PagebreakControlType::Total,
+                    _ => PagebreakControlType::None,
+                };
+                element_attributes.remove("data-pagebreak-control");
+                controls.push(PagebreakControl::new(
+                    element_node.clone(),
+                    element_type,
+                    element_node.parent(),
+                    element_node.previous_sibling(),
+                ));
+            });
         self.controls = Some(controls);
     }
 
+    fn update_tag(&mut self, name: &str, page_index: usize) {
+        if page_index == 0 {
+            return;
+        }
+
+        if let Ok(elements) = self.document.select(name) {
+            elements.for_each(|element| {
+                let resolved_content = self
+                    .page_meta_format
+                    .replace(":num", &format!("{}", page_index + 1))
+                    .replace(":content", &element.text_contents());
+
+                element
+                    .as_node()
+                    .children()
+                    .for_each(|child| child.detach());
+                element
+                    .as_node()
+                    .append(NodeRef::new_text(&resolved_content))
+            });
+        }
+    }
+
+    fn update_meta_tag(&mut self, attribute: &str, name: &str, page_index: usize) {
+        if page_index == 0 {
+            return;
+        }
+
+        if let Ok(elements) = self
+            .document
+            .select(&format!("meta[{}=\"{}\"]", attribute, name))
+        {
+            elements.for_each(|meta_tag| {
+                let mut meta_attributes = meta_tag
+                    .as_node()
+                    .as_element()
+                    .unwrap()
+                    .attributes
+                    .borrow_mut();
+
+                if let Some(content) = meta_attributes.get("content") {
+                    let resolved_content = self
+                        .page_meta_format
+                        .replace(":num", &format!("{}", page_index + 1))
+                        .replace(":content", content);
+                    meta_attributes.remove("content");
+                    meta_attributes.insert("content", resolved_content);
+                }
+            });
+        }
+    }
+
     fn update_controls_for_page(&mut self, page_index: usize, total_pages: usize) {
-        self.update_control_text(PagebreakControlType::Current, (page_index+1).to_string());
+        self.update_control_text(PagebreakControlType::Current, (page_index + 1).to_string());
         self.update_control_text(PagebreakControlType::Total, total_pages.to_string());
 
         if page_index == 0 {
@@ -272,25 +339,21 @@ impl PagebreakState {
     }
 
     fn reattach_controls(&mut self) {
-        self.controls
-            .as_ref()
-            .unwrap()
-            .iter()
-            .for_each(|control| {
-                if control.previous_sibling.is_some() {
-                    control
-                        .previous_sibling
-                        .as_ref()
-                        .unwrap()
-                        .insert_after(control.element.clone())
-                } else if control.parent.is_some() {
-                    control
-                        .parent
-                        .as_ref()
-                        .unwrap()
-                        .prepend(control.element.clone());
-                }
-            });
+        self.controls.as_ref().unwrap().iter().for_each(|control| {
+            if control.previous_sibling.is_some() {
+                control
+                    .previous_sibling
+                    .as_ref()
+                    .unwrap()
+                    .insert_after(control.element.clone())
+            } else if control.parent.is_some() {
+                control
+                    .parent
+                    .as_ref()
+                    .unwrap()
+                    .prepend(control.element.clone());
+            }
+        });
     }
 
     fn update_control_href(&mut self, control_type: PagebreakControlType, new_href: String) {
@@ -361,22 +424,15 @@ impl PagebreakState {
         let to_path = self.get_file_url(to).unwrap();
         let mut relative_path =
             pathdiff::diff_paths(to_path.parent().unwrap(), from_path.parent().unwrap()).unwrap();
-        match relative_path.components().next().unwrap() {
-            Component::Normal(_) => {
-                relative_path = PathBuf::from("./").join(relative_path);
-            }
-            _ => {}
-        };
-        format!("{}/", relative_path.to_str().unwrap()).to_string()
+        if let Component::Normal(_) = relative_path.components().next().unwrap() {
+            relative_path = PathBuf::from("./").join(relative_path);
+        }
+        format!("{}/", relative_path.to_str().unwrap())
     }
 
     fn write_current_document_to_disk(&self, path: PathBuf) {
         let mut file = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
-        self.document
-            .as_ref()
-            .unwrap()
-            .serialize(&mut file)
-            .unwrap();
+        self.document.serialize(&mut file).unwrap();
     }
 }
 
@@ -398,10 +454,16 @@ impl PagebreakStatusLogging for PagebreakState {
 
 #[cfg(test)]
 mod tests {
+    use kuchiki::traits::TendrilSink;
+
     use super::*;
 
     fn new_state() -> PagebreakState {
-        PagebreakState::new(None, PathBuf::from("index.html"), PathBuf::from("output"))
+        PagebreakState::new(
+            kuchiki::parse_html().one(""),
+            PathBuf::from("index.html"),
+            PathBuf::from("output"),
+        )
     }
 
     #[test]

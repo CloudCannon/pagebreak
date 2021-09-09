@@ -48,28 +48,40 @@ pub fn steps() -> Steps<crate::PagebreakWorld> {
 
             world
         })
-        .then_regex(r#"I should see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#, |world, ctx| {
-            let contents = read_file(&world, &ctx.matches[2]);
-            assert!(contents.contains(&ctx.matches[1]));
+        .then_regex(
+            r#"I should see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#,
+            |world, ctx| {
+                let contents = read_file(&world, &ctx.matches[2]);
+                assert!(contents.contains(&ctx.matches[1]));
 
-            world
-        })
-        .then_regex(r#"I should not see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#, |world, ctx| {
-            let contents = read_file(&world, &ctx.matches[2]);
-            assert!(!contents.contains(&ctx.matches[1]));
+                world
+            },
+        )
+        .then_regex(
+            r#"I should not see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#,
+            |world, ctx| {
+                let contents = read_file(&world, &ctx.matches[2]);
+                assert!(!contents.contains(&ctx.matches[1]));
 
-            world
-        })
-        .then_regex(r#"I should see the file (?:"|')(.*)(?:"|')$"#, |world, ctx| {
-            assert!(check_file_exists(&world, &ctx.matches[1]));
+                world
+            },
+        )
+        .then_regex(
+            r#"I should see the file (?:"|')(.*)(?:"|')$"#,
+            |world, ctx| {
+                assert!(check_file_exists(&world, &ctx.matches[1]));
 
-            world
-        })
-        .then_regex(r#"I should not see the file (?:"|')(.*)(?:"|')$"#, |world, ctx| {
-            assert!(!check_file_exists(&world, &ctx.matches[1]));
+                world
+            },
+        )
+        .then_regex(
+            r#"I should not see the file (?:"|')(.*)(?:"|')$"#,
+            |world, ctx| {
+                assert!(!check_file_exists(&world, &ctx.matches[1]));
 
-            world
-        });
+                world
+            },
+        );
     steps
 }
 
