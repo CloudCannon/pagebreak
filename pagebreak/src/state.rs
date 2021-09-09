@@ -50,11 +50,6 @@ impl PagebreakControl {
     }
 }
 
-struct PagebreakMeta {
-    element: NodeRef,
-    format: String,
-}
-
 pub struct PagebreakState {
     pub document: NodeRef,
     file_path: PathBuf,
@@ -64,10 +59,9 @@ pub struct PagebreakState {
     page_count: Option<usize>,
     per_page: Option<usize>,
     page_url_format: String,
-    page_title_format: String,
+    page_meta_format: String,
     dom_indentation: String,
     controls: Option<Vec<PagebreakControl>>,
-    meta_tags: Vec<PagebreakMeta>,
 }
 
 impl PagebreakState {
@@ -81,18 +75,16 @@ impl PagebreakState {
             page_count: None,
             per_page: None,
             page_url_format: "./page/:num/".to_string(),
-            page_title_format: ":title - Page :num".to_string(),
+            page_meta_format: ":content | Page :num".to_string(),
             dom_indentation: "\n".to_string(),
             controls: None,
-            meta_tags: vec![],
         }
     }
 
     pub fn hydrate(&mut self) {
-        self.find_title();
         self.find_pagebreak_node();
-        self.find_meta_tags();
         if self.page_container.is_some() {
+            self.read_meta_format();
             self.read_pagebreak_node();
             self.find_pagination_children();
             self.find_pagebreak_controls();
@@ -120,8 +112,10 @@ impl PagebreakState {
 
             self.indent_for_next_element();
 
-            self.update_title_for_page(page_number);
-            self.update_meta_tags(page_number);
+            self.update_tag("title", page_number);
+            self.update_meta_tag("og:title", page_number);
+            self.update_meta_tag("twitter:title", page_number);
+
             self.update_controls_for_page(page_number, self.page_count.unwrap());
 
             let cleaned_file_url = self.get_file_url(page_number);
@@ -160,51 +154,20 @@ impl PagebreakState {
             .append(child.element.take().unwrap());
     }
 
-    fn find_meta_tags(&mut self) {
-        self.document
-            .select("meta[data-pagebreak-meta]")
+    fn read_meta_format(&mut self) {
+        let mut attributes = self
+            .page_container
+            .as_ref()
             .unwrap()
-            .for_each(|element| {
-                let mut attributes = element
-                    .as_node()
-                    .as_element()
-                    .unwrap()
-                    .attributes
-                    .borrow_mut();
+            .as_node()
+            .as_element()
+            .unwrap()
+            .attributes
+            .borrow_mut();
 
-                if let (Some(format), Some(content)) = (
-                    attributes.get("data-pagebreak-meta"),
-                    attributes.get("content"),
-                ) {
-                    self.meta_tags.push(PagebreakMeta {
-                        format: format.to_string().replace(":content", content),
-                        element: element.as_node().clone(),
-                    })
-                }
-
-                attributes.remove("data-pagebreak-meta");
-            });
-    }
-
-    fn find_title(&mut self) {
-        let title = self.document.select("title").unwrap().next();
-
-        if let Some(title) = title {
-            let mut title_attributes = title
-                .as_node()
-                .as_element()
-                .unwrap()
-                .attributes
-                .borrow_mut();
-
-            if let Some(page_title_format) = title_attributes.get("data-pagebreak-title") {
-                self.page_title_format = page_title_format.to_string();
-                title_attributes.remove("data-pagebreak-title");
-            }
-
-            self.page_title_format = self
-                .page_title_format
-                .replace(":title", &title.text_contents())
+        if let Some(format) = attributes.get("data-pagebreak-meta") {
+            self.page_meta_format = format.to_string();
+            attributes.remove("data-pagebreak-meta");
         }
     }
 
@@ -291,43 +254,55 @@ impl PagebreakState {
         self.controls = Some(controls);
     }
 
-    fn update_meta_tags(&mut self, page_index: usize) {
+    fn update_tag(&mut self, name: &str, page_index: usize) {
         if page_index == 0 {
             return;
         }
 
-        self.meta_tags.iter().for_each(|meta_tag| {
-            let resolved_content = meta_tag
-                .format
-                .replace(":num", &format!("{}", page_index + 1));
+        if let Ok(elements) = self.document.select(name) {
+            elements.for_each(|element| {
+                let resolved_content = self
+                    .page_meta_format
+                    .replace(":num", &format!("{}", page_index + 1))
+                    .replace(":content", &element.text_contents());
 
-            let mut meta_attributes = meta_tag
-                .element
-                .as_element()
-                .unwrap()
-                .attributes
-                .borrow_mut();
-
-            meta_attributes.remove("content");
-            meta_attributes.insert("content", resolved_content);
-        });
+                element
+                    .as_node()
+                    .children()
+                    .for_each(|child| child.detach());
+                element
+                    .as_node()
+                    .append(NodeRef::new_text(&resolved_content))
+            });
+        }
     }
 
-    fn update_title_for_page(&mut self, page_index: usize) {
+    fn update_meta_tag(&mut self, name: &str, page_index: usize) {
         if page_index == 0 {
             return;
         }
 
-        let resolved_title = self
-            .page_title_format
-            .replace(":num", &format!("{}", page_index + 1));
+        if let Ok(elements) = self
+            .document
+            .select(&format!("meta[property=\"{}\"]", name))
+        {
+            elements.for_each(|meta_tag| {
+                let mut meta_attributes = meta_tag
+                    .as_node()
+                    .as_element()
+                    .unwrap()
+                    .attributes
+                    .borrow_mut();
 
-        let title = self.document.select("title").unwrap().next();
-
-        if let Some(title) = title {
-            let title = title.as_node();
-            title.children().for_each(|child| child.detach());
-            title.append(NodeRef::new_text(&resolved_title));
+                if let Some(content) = meta_attributes.get("content") {
+                    let resolved_content = self
+                        .page_meta_format
+                        .replace(":num", &format!("{}", page_index + 1))
+                        .replace(":content", content);
+                    meta_attributes.remove("content");
+                    meta_attributes.insert("content", resolved_content);
+                }
+            });
         }
     }
 
