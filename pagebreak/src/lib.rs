@@ -1,7 +1,11 @@
 use kuchiki::{traits::TendrilSink, NodeRef};
 use rayon::prelude::*;
 use state::*;
-use std::{fs, io::Read, path::PathBuf};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 mod errors;
 mod state;
@@ -104,14 +108,11 @@ impl SourcePage {
         kuchiki::parse_html().one(self.source.as_ref().unwrap().as_str())
     }
 
-    fn paginate(&self, input_path: &PathBuf, output_path: &PathBuf) {
+    fn paginate(&self, input_path: &Path, output_path: &Path) {
         let file_path = self.path.strip_prefix(&input_path).unwrap();
 
-        let mut state = PagebreakState::new(
-            Some(self.parse()),
-            file_path.to_owned(),
-            output_path.to_owned(),
-        );
+        let mut state =
+            PagebreakState::new(self.parse(), file_path.to_owned(), output_path.to_owned());
 
         state.hydrate();
         state.log_hydrated();
@@ -119,21 +120,22 @@ impl SourcePage {
     }
 }
 
-fn read_pages(path: &PathBuf) -> Vec<SourcePage> {
+fn read_pages(path: &Path) -> Vec<SourcePage> {
     let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*.html"])
         .build()
         .unwrap();
 
-    let mut pages = vec![];
-    globwalker.for_each(|entry| {
-        let entry = entry.unwrap();
-        let path = entry.path().to_owned();
+    let mut pages: Vec<SourcePage> = globwalker
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let path = entry.path().to_owned();
 
-        pages.push(SourcePage {
-            path: path.to_path_buf(),
-            source: None,
-        });
-    });
+            SourcePage {
+                path: path.to_path_buf(),
+                source: None,
+            }
+        })
+        .collect();
 
     pages.par_iter_mut().for_each(|page| {
         let mut file = fs::File::open(&page.path).unwrap();
