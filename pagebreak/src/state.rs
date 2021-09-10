@@ -112,11 +112,52 @@ impl PagebreakState {
 
             self.indent_for_next_element();
 
-            self.update_tag("title", page_number);
-            self.update_meta_tag("property", "og:title", page_number);
-            self.update_meta_tag("property", "twitter:title", page_number);
+            let meta_format = &self.page_meta_format.clone();
+            self.update_tag_content(meta_format, "title", page_number, |_| true);
+            self.update_tag_attribute(
+                meta_format,
+                "[property=\"og:title\"]",
+                "content",
+                page_number,
+                |_| true,
+            );
+            self.update_tag_attribute(
+                meta_format,
+                "[property=\"twitter:title\"]",
+                "content",
+                page_number,
+                |_| true,
+            );
 
-            self.update_links("href", page_number);
+            self.update_tag_attribute(
+                ":rel-from:content",
+                "[href]",
+                "href",
+                page_number,
+                |element| {
+                    let attributes = element.as_node().as_element().unwrap().attributes.borrow();
+                    let url = attributes.get("href").unwrap();
+                    !url.starts_with("http://")
+                        && !url.starts_with("https://")
+                        && !url.starts_with('/')
+                },
+            );
+
+            self.update_tag_attribute(
+                ":content:rel-to",
+                "[rel=\"canonical\"]",
+                "href",
+                page_number,
+                |_| true,
+            );
+
+            self.update_tag_attribute(
+                ":content:rel-to",
+                "[property=\"og:url\"]",
+                "content",
+                page_number,
+                |_| true,
+            );
 
             self.update_controls_for_page(page_number, self.page_count.unwrap());
 
@@ -256,45 +297,40 @@ impl PagebreakState {
         self.controls = Some(controls);
     }
 
-    fn update_links(&mut self, property: &str, page_index: usize) {
-        if page_index == 0 {
-            return;
+    fn resolve_format(&mut self, format: &str, page_index: usize, content: &str) -> String {
+        let mut path_to = self.relative_path_between_pages(0, page_index);
+        let mut path_from = self.relative_path_between_pages(page_index, 0);
+
+        if let Some(path) = path_to.strip_prefix("./") {
+            path_to = path.to_string()
         }
 
-        if let Ok(elements) = self.document.select(&format!("[{}]", property)) {
-            elements.for_each(|element| {
-                let mut attributes = element
-                    .as_node()
-                    .as_element()
-                    .unwrap()
-                    .attributes
-                    .borrow_mut();
-                let url = attributes.get(property).unwrap();
-                if !url.starts_with("http://")
-                    && !url.starts_with("https://")
-                    && !url.starts_with('/')
-                {
-                    let mut resolved_url = self.relative_path_between_pages(page_index, 0);
-                    resolved_url.push_str(url);
-
-                    attributes.remove(property);
-                    attributes.insert(property, resolved_url);
-                }
-            });
+        if let Some(path) = path_from.strip_prefix("./") {
+            path_from = path.to_string()
         }
+
+        format
+            .replace(":num", &format!("{}", page_index + 1))
+            .replace(":content", content)
+            .replace(":rel-from", &path_from)
+            .replace(":rel-to", &path_to)
     }
 
-    fn update_tag(&mut self, name: &str, page_index: usize) {
+    fn update_tag_content(
+        &mut self,
+        format: &str,
+        selector: &str,
+        page_index: usize,
+        filter: fn(&NodeDataRef<ElementData>) -> bool,
+    ) {
         if page_index == 0 {
             return;
         }
 
-        if let Ok(elements) = self.document.select(name) {
-            elements.for_each(|element| {
-                let resolved_content = self
-                    .page_meta_format
-                    .replace(":num", &format!("{}", page_index + 1))
-                    .replace(":content", &element.text_contents());
+        if let Ok(elements) = self.document.select(selector) {
+            elements.filter(filter).for_each(|element| {
+                let resolved_content =
+                    self.resolve_format(format, page_index, &element.text_contents());
 
                 element
                     .as_node()
@@ -307,30 +343,31 @@ impl PagebreakState {
         }
     }
 
-    fn update_meta_tag(&mut self, attribute: &str, name: &str, page_index: usize) {
+    fn update_tag_attribute(
+        &mut self,
+        format: &str,
+        selector: &str,
+        attribute: &str,
+        page_index: usize,
+        filter: fn(&NodeDataRef<ElementData>) -> bool,
+    ) {
         if page_index == 0 {
             return;
         }
 
-        if let Ok(elements) = self
-            .document
-            .select(&format!("meta[{}=\"{}\"]", attribute, name))
-        {
-            elements.for_each(|meta_tag| {
-                let mut meta_attributes = meta_tag
+        if let Ok(elements) = self.document.select(selector) {
+            elements.filter(filter).for_each(|element| {
+                let mut attributes = element
                     .as_node()
                     .as_element()
                     .unwrap()
                     .attributes
                     .borrow_mut();
 
-                if let Some(content) = meta_attributes.get("content") {
-                    let resolved_content = self
-                        .page_meta_format
-                        .replace(":num", &format!("{}", page_index + 1))
-                        .replace(":content", content);
-                    meta_attributes.remove("content");
-                    meta_attributes.insert("content", resolved_content);
+                if let Some(content) = attributes.get(attribute) {
+                    let resolved_content = self.resolve_format(format, page_index, content);
+                    attributes.remove(attribute);
+                    attributes.insert(attribute, resolved_content);
                 }
             });
         }

@@ -1,7 +1,6 @@
 Feature: Pagination Canonicals
 
   Scenario: By default, URLs in the meta should be updated to the self page
-    Given This should be implemented in issue #3
     Given I have a "source/index.html" file with the content:
       """
       <html>
@@ -18,7 +17,7 @@ Feature: Pagination Canonicals
       </html>
       """
     When I run Pagebreak
-    Then I should see '<link rel="canonical" href="https://example.com/blog/" />' in "output/index.html"
-    And I should see '<meta property="og:url" content="https://example.com/blog/" />' in "output/index.html"
-    Then I should see '<link rel="canonical" href="https://example.com/blog/page/2/" />' in "output/page/2/index.html"
-    And I should see '<meta property="og:url" content="https://example.com/blog/page/2/" />' in "output/page/2/index.html"
+    Then I should see '<link href="https://example.com/blog/" rel="canonical">' in "output/index.html"
+    And I should see '<meta content="https://example.com/blog/" property="og:url">' in "output/index.html"
+    Then I should see '<link href="https://example.com/blog/page/2/" rel="canonical">' in "output/page/2/index.html"
+    And I should see '<meta content="https://example.com/blog/page/2/" property="og:url">' in "output/page/2/index.html"
