@@ -61,3 +61,4 @@ Feature: Pagination URLs
     When I run Pagebreak
     Then I should see the file "output/about.html"
     And I should see the file "output/about/page/2/index.html"
+    But I should not see the file "output/about/page/2.html"
