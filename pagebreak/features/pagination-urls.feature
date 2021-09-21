@@ -4,8 +4,8 @@ Feature: Pagination URLs
     Given I have a "source/index.html" file with the body:
       """
       <section data-pagebreak="1" data-pagebreak-url="./pb/:num/j/">
-        <p>Item 1</p>
-        <p>Item 2</p>
+      <p>Item 1</p>
+      <p>Item 2</p>
       </section>
       """
     When I run Pagebreak
@@ -17,8 +17,8 @@ Feature: Pagination URLs
     Given I have a "source/red/blue/yellow/index.html" file with the body:
       """
       <section data-pagebreak="1" data-pagebreak-url="../../green/:num/">
-        <p>Item 1</p>
-        <p>Item 2</p>
+      <p>Item 1</p>
+      <p>Item 2</p>
       </section>
       """
     When I run Pagebreak
@@ -29,8 +29,8 @@ Feature: Pagination URLs
     Given I have a "source/index.html" file with the body:
       """
       <section data-pagebreak="1" data-pagebreak-url="./page/:num">
-        <p>Item 1</p>
-        <p>Item 2</p>
+      <p>Item 1</p>
+      <p>Item 2</p>
       </section>
       """
     When I run Pagebreak
@@ -39,14 +39,26 @@ Feature: Pagination URLs
     But I should not see the file "output/page/2.html"
 
   Scenario: If I provide a named HTML page, I should get a named pagination page
-    Given This should be implemented in issue #4
     Given I have a "source/about.html" file with the body:
       """
       <section data-pagebreak="1" data-pagebreak-url="./page/:num/">
-        <p>Item 1</p>
-        <p>Item 2</p>
+      <p>Item 1</p>
+      <p>Item 2</p>
       </section>
       """
     When I run Pagebreak
     Then I should see the file "output/about.html"
-    And I should see the file "output/about/page/2.html"
+    And I should see the file "output/about/page/2/index.html"
+
+  Scenario: If I provide a named HTML page without a trailing slash, I should get a named pagination page
+    Given I have a "source/about.html" file with the body:
+      """
+      <section data-pagebreak="1" data-pagebreak-url="./page/:num">
+      <p>Item 1</p>
+      <p>Item 2</p>
+      </section>
+      """
+    When I run Pagebreak
+    Then I should see the file "output/about.html"
+    And I should see the file "output/about/page/2/index.html"
+    But I should not see the file "output/about/page/2.html"
