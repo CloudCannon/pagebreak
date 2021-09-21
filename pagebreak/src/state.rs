@@ -468,7 +468,12 @@ impl PagebreakState {
             _ => {
                 let page_number = (&page_number + 1).to_string();
                 let file_url = self.page_url_format.replace(":num", &page_number);
-                let file_path = PathBuf::from(file_url).join(self.file_path.file_name().unwrap());
+                let file_stem = self.file_path.file_stem().unwrap().to_str().unwrap();
+                let file_path = if !file_stem.eq("index") {
+                    PathBuf::from(file_stem).join(file_url).join("index.html")
+                } else {
+                    PathBuf::from(file_url).join("index.html")
+                };
                 let cleaned_path = self.file_path.parent().unwrap().join(file_path).clean();
 
                 match cleaned_path.components().next().unwrap() {
