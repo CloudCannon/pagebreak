@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    jekyll-pagebreak (0.5.0)
+    jekyll-pagebreak (0.5.1)
       jekyll (>= 3.7, < 5.0)
 
 GEM
@@ -63,7 +63,7 @@ GEM
     rb-inotify (0.10.1)
       ffi (~> 1.0)
     rexml (3.2.5)
-    rouge (3.26.0)
+    rouge (3.26.1)
     rubocop (0.62.0)
       jaro_winkler (~> 1.5.1)
       parallel (~> 1.10)
