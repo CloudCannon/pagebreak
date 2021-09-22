@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    jekyll-pagebreak (0.5.1)
+    jekyll-pagebreak (0.6.0)
       jekyll (>= 3.7, < 5.0)
 
 GEM
