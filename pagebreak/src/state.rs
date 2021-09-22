@@ -18,7 +18,7 @@ impl PagebreakNode {
 }
 
 #[derive(Debug, PartialEq)]
-enum PagebreakControlType {
+enum PagebreakElementType {
     Next,
     Previous,
     NoNext,
@@ -27,25 +27,25 @@ enum PagebreakControlType {
     Total,
     None,
 }
-struct PagebreakControl {
+struct PagebreakElement {
     element: NodeRef,
     parent: Option<NodeRef>,
     previous_sibling: Option<NodeRef>,
-    control_type: PagebreakControlType,
+    element_type: PagebreakElementType,
 }
 
-impl PagebreakControl {
+impl PagebreakElement {
     pub fn new(
         element: NodeRef,
-        control_type: PagebreakControlType,
+        element_type: PagebreakElementType,
         parent: Option<NodeRef>,
         previous_sibling: Option<NodeRef>,
     ) -> Self {
-        PagebreakControl {
+        PagebreakElement {
             element,
             parent,
             previous_sibling,
-            control_type,
+            element_type,
         }
     }
 }
@@ -61,7 +61,7 @@ pub struct PagebreakState {
     page_url_format: String,
     page_meta_format: String,
     dom_indentation: String,
-    controls: Option<Vec<PagebreakControl>>,
+    pagebreak_elements: Option<Vec<PagebreakElement>>,
 }
 
 impl PagebreakState {
@@ -77,7 +77,7 @@ impl PagebreakState {
             page_url_format: "./page/:num/".to_string(),
             page_meta_format: ":content | Page :num".to_string(),
             dom_indentation: "\n".to_string(),
-            controls: None,
+            pagebreak_elements: None,
         }
     }
 
@@ -87,7 +87,7 @@ impl PagebreakState {
             self.read_meta_format();
             self.read_pagebreak_node();
             self.find_pagination_children();
-            self.find_pagebreak_controls();
+            self.find_pagebreak_elements();
             self.page_count = Some(
                 (self.page_items.as_ref().unwrap().len() + self.per_page.unwrap() - 1)
                     / self.per_page.unwrap(),
@@ -159,7 +159,7 @@ impl PagebreakState {
                 |_| true,
             );
 
-            self.update_controls_for_page(page_number, self.page_count.unwrap());
+            self.update_elements_for_page(page_number, self.page_count.unwrap());
 
             let cleaned_file_url = self.get_file_url(page_number);
             let file_url = match cleaned_file_url {
@@ -174,7 +174,7 @@ impl PagebreakState {
             fs::create_dir_all(&output_file_path.parent().unwrap()).unwrap();
             self.write_current_document_to_disk(output_file_path);
 
-            self.reattach_controls();
+            self.reattach_elements();
         }
     }
 
@@ -265,36 +265,41 @@ impl PagebreakState {
         self.page_items = Some(children);
     }
 
-    fn find_pagebreak_controls(&mut self) {
-        let mut controls = vec![];
+    fn find_pagebreak_elements(&mut self) {
+        let mut elements = vec![];
         self.document
-            .select("[data-pagebreak-control]")
+            .select("[data-pagebreak-control], [data-pagebreak-label]")
             .unwrap()
             .for_each(|element| {
                 let element_node = element.as_node();
                 let mut element_attributes =
                     element_node.as_element().unwrap().attributes.borrow_mut();
-                let element_type = match element_attributes
-                    .get("data-pagebreak-control")
-                    .unwrap_or("none")
-                {
-                    "next" => PagebreakControlType::Next,
-                    "prev" => PagebreakControlType::Previous,
-                    "!next" => PagebreakControlType::NoNext,
-                    "!prev" => PagebreakControlType::NoPrevious,
-                    "current" => PagebreakControlType::Current,
-                    "total" => PagebreakControlType::Total,
-                    _ => PagebreakControlType::None,
+                let (attribute, value) =
+                    if let Some(control) = element_attributes.get("data-pagebreak-control") {
+                        ("data-pagebreak-control", control)
+                    } else if let Some(label) = element_attributes.get("data-pagebreak-label") {
+                        ("data-pagebreak-label", label)
+                    } else {
+                        unreachable!("Couldn't get attribute")
+                    };
+                let element_type = match (attribute, value) {
+                    ("data-pagebreak-control", "next") => PagebreakElementType::Next,
+                    ("data-pagebreak-control", "prev") => PagebreakElementType::Previous,
+                    ("data-pagebreak-control", "!next") => PagebreakElementType::NoNext,
+                    ("data-pagebreak-control", "!prev") => PagebreakElementType::NoPrevious,
+                    ("data-pagebreak-label", "current") => PagebreakElementType::Current,
+                    ("data-pagebreak-label", "total") => PagebreakElementType::Total,
+                    _ => PagebreakElementType::None,
                 };
-                element_attributes.remove("data-pagebreak-control");
-                controls.push(PagebreakControl::new(
+                element_attributes.remove(attribute);
+                elements.push(PagebreakElement::new(
                     element_node.clone(),
                     element_type,
                     element_node.parent(),
                     element_node.previous_sibling(),
                 ));
             });
-        self.controls = Some(controls);
+        self.pagebreak_elements = Some(elements);
     }
 
     fn resolve_format(&mut self, format: &str, page_index: usize, content: &str) -> String {
@@ -373,64 +378,68 @@ impl PagebreakState {
         }
     }
 
-    fn update_controls_for_page(&mut self, page_index: usize, total_pages: usize) {
-        self.update_control_text(PagebreakControlType::Current, (page_index + 1).to_string());
-        self.update_control_text(PagebreakControlType::Total, total_pages.to_string());
+    fn update_elements_for_page(&mut self, page_index: usize, total_pages: usize) {
+        self.update_element_text(PagebreakElementType::Current, (page_index + 1).to_string());
+        self.update_element_text(PagebreakElementType::Total, total_pages.to_string());
 
         if page_index == 0 {
-            self.detach_control(PagebreakControlType::Previous);
+            self.detach_element(PagebreakElementType::Previous);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index - 1);
-            self.update_control_href(PagebreakControlType::Previous, relative_href);
-            self.detach_control(PagebreakControlType::NoPrevious);
+            self.update_element_href(PagebreakElementType::Previous, relative_href);
+            self.detach_element(PagebreakElementType::NoPrevious);
         }
 
         if page_index == self.page_count.unwrap() - 1 {
-            self.detach_control(PagebreakControlType::Next);
+            self.detach_element(PagebreakElementType::Next);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index + 1);
-            self.update_control_href(PagebreakControlType::Next, relative_href);
-            self.detach_control(PagebreakControlType::NoNext);
+            self.update_element_href(PagebreakElementType::Next, relative_href);
+            self.detach_element(PagebreakElementType::NoNext);
         }
     }
 
-    fn detach_control(&mut self, control_type: PagebreakControlType) {
-        self.controls
+    fn detach_element(&mut self, element_type: PagebreakElementType) {
+        self.pagebreak_elements
             .as_ref()
             .unwrap()
             .iter()
-            .filter(|control| control.control_type == control_type)
-            .for_each(|control| {
-                control.element.detach();
+            .filter(|element| element.element_type == element_type)
+            .for_each(|element| {
+                element.element.detach();
             });
     }
 
-    fn reattach_controls(&mut self) {
-        self.controls.as_ref().unwrap().iter().for_each(|control| {
-            if control.previous_sibling.is_some() {
-                control
-                    .previous_sibling
-                    .as_ref()
-                    .unwrap()
-                    .insert_after(control.element.clone())
-            } else if control.parent.is_some() {
-                control
-                    .parent
-                    .as_ref()
-                    .unwrap()
-                    .prepend(control.element.clone());
-            }
-        });
-    }
-
-    fn update_control_href(&mut self, control_type: PagebreakControlType, new_href: String) {
-        self.controls
+    fn reattach_elements(&mut self) {
+        self.pagebreak_elements
             .as_ref()
             .unwrap()
             .iter()
-            .filter(|control| control.control_type == control_type)
-            .for_each(|control| {
-                let mut attributes = control
+            .for_each(|element| {
+                if element.previous_sibling.is_some() {
+                    element
+                        .previous_sibling
+                        .as_ref()
+                        .unwrap()
+                        .insert_after(element.element.clone())
+                } else if element.parent.is_some() {
+                    element
+                        .parent
+                        .as_ref()
+                        .unwrap()
+                        .prepend(element.element.clone());
+                }
+            });
+    }
+
+    fn update_element_href(&mut self, element_type: PagebreakElementType, new_href: String) {
+        self.pagebreak_elements
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|element| element.element_type == element_type)
+            .for_each(|element| {
+                let mut attributes = element
                     .element
                     .as_element()
                     .unwrap()
@@ -441,14 +450,14 @@ impl PagebreakState {
             });
     }
 
-    fn update_control_text(&mut self, control_type: PagebreakControlType, new_text: String) {
-        self.controls
+    fn update_element_text(&mut self, element_type: PagebreakElementType, new_text: String) {
+        self.pagebreak_elements
             .as_ref()
             .unwrap()
             .iter()
-            .filter(|control| control.control_type == control_type)
-            .for_each(|control| {
-                let node_ref = &control.element;
+            .filter(|element| element.element_type == element_type)
+            .for_each(|element| {
+                let node_ref = &element.element;
                 node_ref.children().for_each(|child| child.detach());
                 node_ref.append(NodeRef::new_text(&new_text));
             });

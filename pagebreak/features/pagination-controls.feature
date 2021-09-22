@@ -5,8 +5,8 @@ Feature: Pagination Controls
       """
       <section data-pagebreak="1"><p></p><p></p><p></p></section>
       <section>
-        <a href="#" data-pagebreak-control="prev">Previous Page</a>
-        <a href="#" data-pagebreak-control="next">Next Page</a>
+      <a href="#" data-pagebreak-control="prev">Previous Page</a>
+      <a href="#" data-pagebreak-control="next">Next Page</a>
       </section>
       """
     When I run Pagebreak
@@ -22,8 +22,8 @@ Feature: Pagination Controls
       """
       <section data-pagebreak="1"><p></p><p></p><p></p></section>
       <section>
-        <a href="#" data-pagebreak-control="prev">Previous Page</a>
-        <a href="#" data-pagebreak-control="next">Next Page</a>
+      <a href="#" data-pagebreak-control="prev">Previous Page</a>
+      <a href="#" data-pagebreak-control="next">Next Page</a>
       </section>
       """
     When I run Pagebreak
@@ -37,8 +37,8 @@ Feature: Pagination Controls
       """
       <section data-pagebreak="1" data-pagebreak-url="../../page/:num/test/"><p></p><p></p><p></p></section>
       <section>
-        <a href="#" data-pagebreak-control="prev">Previous Page</a>
-        <a href="#" data-pagebreak-control="next">Next Page</a>
+      <a href="#" data-pagebreak-control="prev">Previous Page</a>
+      <a href="#" data-pagebreak-control="next">Next Page</a>
       </section>
       """
     When I run Pagebreak
@@ -52,10 +52,10 @@ Feature: Pagination Controls
       """
       <section data-pagebreak="1"><p></p><p></p></section>
       <section>
-        <a href="#" data-pagebreak-control="prev">Previous Page</a>
-        <span data-pagebreak-control="!prev">No Previous</span>
-        <a href="#" data-pagebreak-control="next">Next Page</a>
-        <span data-pagebreak-control="!next">No Next</span>
+      <a href="#" data-pagebreak-control="prev">Previous Page</a>
+      <span data-pagebreak-control="!prev">No Previous</span>
+      <a href="#" data-pagebreak-control="next">Next Page</a>
+      <span data-pagebreak-control="!next">No Next</span>
       </section>
       """
     When I run Pagebreak
@@ -65,15 +65,3 @@ Feature: Pagination Controls
     And I should see '<a href="../../">Previous Page</a>' in "output/page/2/index.html"
     But I should not see "No Next" in "output/index.html"
     And I should not see "No Previous" in "output/page/2/index.html"
-
-  Scenario: If I have pagination labels, they should reflect the page number and total
-    Given I have a "source/index.html" file with the body:
-      """
-      <section data-pagebreak="1"><p></p><p></p></section>
-      <section>
-        <p>Page <span data-pagebreak-control="current">1</span> of <span data-pagebreak-control="total">1</span></p>
-      </section>
-      """
-    When I run Pagebreak
-    Then I should see '<p>Page <span>1</span> of <span>2</span></p>' in "output/index.html"
-    And I should see '<p>Page <span>2</span> of <span>2</span></p>' in "output/page/2/index.html"
