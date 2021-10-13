@@ -108,9 +108,9 @@ If you want to show current and total page counts, you can use the `current` and
 ```html
 <p>
     Page 
-    <span data-pagebreak-control="current">1</span>
+    <span data-pagebreak-label="current">1</span>
     of
-    <span data-pagebreak-control="total">1</span>
+    <span data-pagebreak-label="total">1</span>
 </p>
 ```
 
@@ -127,8 +127,8 @@ Given an `items/index.html` file:
     <article>Item 4</article>
     <article>Item 5</article>
 </section>
-<a href="" data-pagebreak-control="prev">Previous</a>
-<a href="" data-pagebreak-control="next">Next</a>
+<a href="" data-pagebreak-label="prev">Previous</a>
+<a href="" data-pagebreak-label="next">Next</a>
 ```
 
 The new `items/index.html` will look like:
