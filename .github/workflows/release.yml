@@ -109,6 +109,9 @@ jobs:
           src=$(pwd)
           stage=
           case $RUNNER_OS in
+              Windows)
+                  stage=$(mktemp -d)
+                  ;;
               Linux)
                   stage=$(mktemp -d)
                   ;;
@@ -127,6 +130,9 @@ jobs:
           tar czf $ASSET_PATH *
           cd $src
           case $RUNNER_OS in
+              Windows)
+                  sha256sum $ASSET_NAME > $CHECKSUM_PATH
+                  ;;
               Linux)
                   sha256sum $ASSET_NAME > $CHECKSUM_PATH
                   ;;
