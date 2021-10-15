@@ -47,6 +47,11 @@ jobs:
     strategy:
       matrix:
         include:
+          - build: windows
+            os: windows-latest
+            rust: stable
+            target: x86_64-pc-windows-msvc
+            cross: false
           #- build: linux
           #os: ubuntu-latest
           #rust: stable
@@ -64,81 +69,76 @@ jobs:
         #   target: aarch64-unknown-linux-gnu
         #   linker: gcc-aarch64-linux-gnu
         #   cross: true
-          #- build: macos
-          #os: macos-latest
-          #rust: stable
-          #target: x86_64-apple-darwin
-          #cross: false
-          - build: windows
-            os: windows-latest
-          rust: stable
-            target: x86_64-pc-windows-msvc
-          cross: false
+        #- build: macos
+        #os: macos-latest
+        #rust: stable
+        #target: x86_64-apple-darwin
+        #cross: false
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 1
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
 
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          ~/.rustup
-          target
-        key: ${{ runner.os }}-${{ matrix.rust }}
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.rustup
+            target
+          key: ${{ runner.os }}-${{ matrix.rust }}
 
-    - name: Install Linker
-      if: matrix.cross
-      run: |
-        sudo apt update
-        sudo apt install ${{ matrix.linker }}
-    - name: Install Rust
-      run: |
-        rustup install ${{ matrix.rust }}
-        rustup target add ${{ matrix.target }}
-        rustup show
-    - name: Build
-      run: cargo build --release --target ${{ matrix.target }}
+      - name: Install Linker
+        if: matrix.cross
+        run: |
+          sudo apt update
+          sudo apt install ${{ matrix.linker }}
+      - name: Install Rust
+        run: |
+          rustup install ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
+          rustup show
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Package Artifacts
-      run: |
-        src=$(pwd)
-        stage=
-        case $RUNNER_OS in
-            Linux)
-                stage=$(mktemp -d)
-                ;;
-            macOS)
-                stage=$(mktemp -d -t tmp)
-                ;;
-        esac
-        cp target/${{ matrix.target }}/release/pagebreak $stage/
-        cd $stage
-        RELEASE_VERSION=${GITHUB_REF#refs/tags/}
-        ASSET_NAME="pagebreak-$RELEASE_VERSION-${{ matrix.target }}.tar.gz"
-        ASSET_PATH="$src/$ASSET_NAME"
-        CHECKSUM_PATH="$ASSET_PATH.sha256"
-        echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
-        echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
-        tar czf $ASSET_PATH *
-        cd $src
-        case $RUNNER_OS in
-            Linux)
-                sha256sum $ASSET_NAME > $CHECKSUM_PATH
-                ;;
-            macOS)
-                shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
-                ;;
-        esac
-    #- name: Release
-      #uses: softprops/action-gh-release@v1
-      #if: startsWith(github.ref, 'refs/tags/')
-      #with:
+      - name: Package Artifacts
+        run: |
+          src=$(pwd)
+          stage=
+          case $RUNNER_OS in
+              Linux)
+                  stage=$(mktemp -d)
+                  ;;
+              macOS)
+                  stage=$(mktemp -d -t tmp)
+                  ;;
+          esac
+          cp target/${{ matrix.target }}/release/pagebreak $stage/
+          cd $stage
+          RELEASE_VERSION=${GITHUB_REF#refs/tags/}
+          ASSET_NAME="pagebreak-$RELEASE_VERSION-${{ matrix.target }}.tar.gz"
+          ASSET_PATH="$src/$ASSET_NAME"
+          CHECKSUM_PATH="$ASSET_PATH.sha256"
+          echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
+          echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
+          tar czf $ASSET_PATH *
+          cd $src
+          case $RUNNER_OS in
+              Linux)
+                  sha256sum $ASSET_NAME > $CHECKSUM_PATH
+                  ;;
+              macOS)
+                  shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
+                  ;;
+          esac
+        #uses: softprops/action-gh-release@v1
+        #if: startsWith(github.ref, 'refs/tags/')
+        #with:
         #files: |
-          #${{ env.ASSET_PATH }}
-          #${{ env.CHECKSUM_PATH }}
-      #env:
+        #${{ env.ASSET_PATH }}
+        #${{ env.CHECKSUM_PATH }}
+        #env:
         #GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #- name: Release
