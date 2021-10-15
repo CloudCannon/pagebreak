@@ -128,9 +128,7 @@ jobs:
           echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
           echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
           tar czf $ASSET_PATH *
-          ls
           cd $src
-          ls
           case $RUNNER_OS in
               Windows)
                   sha256sum $ASSET_NAME > $CHECKSUM_PATH
@@ -142,6 +140,12 @@ jobs:
                   shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
                   ;;
           esac
+          if [ "$RUNNER_OS" == "Windows" ]; then
+              ASSET_PATH=$(echo "$ASSET_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
+              CHECKSUM_PATH=$(echo "$CHECKSUM_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
+              echo $ASSET_PATH
+              echo $CHECKSUM_PATH
+          fi
 
 #      - name: Release
 #        uses: softprops/action-gh-release@v1
