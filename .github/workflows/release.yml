@@ -43,6 +43,7 @@ jobs:
     runs-on: ${{matrix.os}}
     defaults:
       run:
+        shell: bash
         working-directory: ./pagebreak
     strategy:
       matrix:
