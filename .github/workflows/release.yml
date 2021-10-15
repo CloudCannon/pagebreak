@@ -56,28 +56,28 @@ jobs:
             rust: stable
             target: x86_64-pc-windows-msvc
             cross: false
-          #- build: linux
-          #os: ubuntu-latest
-          #rust: stable
-          #target: x86_64-unknown-linux-musl
-          #cross: false
-        # - build: arm-v7
-        #   os: ubuntu-latest
-        #   rust: stable
-        #   target: armv7-unknown-linux-gnueabihf
-        #   linker: gcc-arm-linux-gnueabihf
-        #   cross: true
-        # - build: aarch64
-        #   os: ubuntu-latest
-        #   rust: stable
-        #   target: aarch64-unknown-linux-gnu
-        #   linker: gcc-aarch64-linux-gnu
-        #   cross: true
-        #- build: macos
-        #os: macos-latest
-        #rust: stable
-        #target: x86_64-apple-darwin
-        #cross: false
+          - build: linux
+            os: ubuntu-latest
+            rust: stable
+            target: x86_64-unknown-linux-musl
+            cross: false
+          # - build: arm-v7
+          #   os: ubuntu-latest
+          #   rust: stable
+          #   target: armv7-unknown-linux-gnueabihf
+          #   linker: gcc-arm-linux-gnueabihf
+          #   cross: true
+          # - build: aarch64
+          #   os: ubuntu-latest
+          #   rust: stable
+          #   target: aarch64-unknown-linux-gnu
+          #   linker: gcc-aarch64-linux-gnu
+          #   cross: true
+          - build: macos
+            os: macos-latest
+            rust: stable
+            target: x86_64-apple-darwin
+            cross: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -143,12 +143,12 @@ jobs:
                   shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
                   ;;
           esac
-        #uses: softprops/action-gh-release@v1
-        #if: startsWith(github.ref, 'refs/tags/')
-        #with:
-        #files: |
-        #${{ env.ASSET_PATH }}
-        #${{ env.CHECKSUM_PATH }}
-        #env:
-        #GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #- name: Release
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ env.ASSET_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
