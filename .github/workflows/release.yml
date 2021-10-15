@@ -128,8 +128,6 @@ jobs:
           ASSET_NAME="pagebreak-$RELEASE_VERSION-${{ matrix.target }}.tar.gz"
           ASSET_PATH="$src/$ASSET_NAME"
           CHECKSUM_PATH="$ASSET_PATH.sha256"
-          echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
-          echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
           tar czf $ASSET_PATH *
           cd $src
           case $RUNNER_OS in
@@ -146,9 +144,9 @@ jobs:
           if [ "$RUNNER_OS" == "Windows" ]; then
               ASSET_PATH=$(echo "$ASSET_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
               CHECKSUM_PATH=$(echo "$CHECKSUM_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
-              echo $ASSET_PATH
-              echo $CHECKSUM_PATH
           fi
+          echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
+          echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
