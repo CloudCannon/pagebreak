@@ -2,10 +2,7 @@
 
 name: Release
 
-on:
-  push:
-    tags:
-      - v*
+on: push
 
 env:
   CARGO_TERM_COLOR: always
@@ -50,11 +47,11 @@ jobs:
     strategy:
       matrix:
         include:
-        - build: linux
-          os: ubuntu-latest
-          rust: stable
-          target: x86_64-unknown-linux-musl
-          cross: false
+          #- build: linux
+          #os: ubuntu-latest
+          #rust: stable
+          #target: x86_64-unknown-linux-musl
+          #cross: false
         # - build: arm-v7
         #   os: ubuntu-latest
         #   rust: stable
@@ -67,10 +64,15 @@ jobs:
         #   target: aarch64-unknown-linux-gnu
         #   linker: gcc-aarch64-linux-gnu
         #   cross: true
-        - build: macos
-          os: macos-latest
+          #- build: macos
+          #os: macos-latest
+          #rust: stable
+          #target: x86_64-apple-darwin
+          #cross: false
+          - build: windows
+            os: windows-latest
           rust: stable
-          target: x86_64-apple-darwin
+            target: x86_64-pc-windows-msvc
           cross: false
     steps:
     - name: Checkout repository
@@ -131,12 +133,12 @@ jobs:
                 shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
                 ;;
         esac
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: |
-          ${{ env.ASSET_PATH }}
-          ${{ env.CHECKSUM_PATH }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #- name: Release
+      #uses: softprops/action-gh-release@v1
+      #if: startsWith(github.ref, 'refs/tags/')
+      #with:
+        #files: |
+          #${{ env.ASSET_PATH }}
+          #${{ env.CHECKSUM_PATH }}
+      #env:
+        #GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
