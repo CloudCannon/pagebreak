@@ -1,6 +1,6 @@
 use crate::errors;
 use kuchiki::{ElementData, NodeDataRef, NodeRef};
-use path_clean::PathClean;
+use lexiclean::Lexiclean;
 use std::path::Component;
 use std::{fs, path::PathBuf};
 
@@ -303,16 +303,8 @@ impl PagebreakState {
     }
 
     fn resolve_format(&mut self, format: &str, page_index: usize, content: &str) -> String {
-        let mut path_to = self.relative_path_between_pages(0, page_index);
-        let mut path_from = self.relative_path_between_pages(page_index, 0);
-
-        if let Some(path) = path_to.strip_prefix("./") {
-            path_to = path.to_string()
-        }
-
-        if let Some(path) = path_from.strip_prefix("./") {
-            path_from = path.to_string()
-        }
+        let path_to = self.relative_path_between_pages(0, page_index);
+        let path_from = self.relative_path_between_pages(page_index, 0);
 
         format
             .replace(":num", &format!("{}", page_index + 1))
@@ -386,7 +378,10 @@ impl PagebreakState {
             self.detach_element(PagebreakElementType::Previous);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index - 1);
-            self.update_element_href(PagebreakElementType::Previous, relative_href);
+            self.update_element_href(
+                PagebreakElementType::Previous,
+                relative_href,
+            );
             self.detach_element(PagebreakElementType::NoPrevious);
         }
 
@@ -394,7 +389,10 @@ impl PagebreakState {
             self.detach_element(PagebreakElementType::Next);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index + 1);
-            self.update_element_href(PagebreakElementType::Next, relative_href);
+            self.update_element_href(
+                PagebreakElementType::Next,
+                relative_href,
+            );
             self.detach_element(PagebreakElementType::NoNext);
         }
     }
@@ -483,8 +481,7 @@ impl PagebreakState {
                 } else {
                     PathBuf::from(file_url).join("index.html")
                 };
-                let cleaned_path = self.file_path.parent().unwrap().join(file_path).clean();
-
+                let cleaned_path = self.file_path.parent().unwrap().join(file_path).lexiclean();
                 match cleaned_path.components().next().unwrap() {
                     Component::ParentDir => Err(errors::PageError {
                         code: errors::PageErrorCode::ParentDir,
@@ -505,10 +502,17 @@ impl PagebreakState {
         let to_path = self.get_file_url(to).unwrap();
         let mut relative_path =
             pathdiff::diff_paths(to_path.parent().unwrap(), from_path.parent().unwrap()).unwrap();
-        if let Component::Normal(_) = relative_path.components().next().unwrap() {
-            relative_path = PathBuf::from("./").join(relative_path);
+        // relative_path.strip_prefix(base)
+        if let Component::CurDir = relative_path.components().next().unwrap() {
+            relative_path = relative_path
+                .strip_prefix(".")
+                .expect("Prefix was checked")
+                .to_path_buf();
         }
-        format!("{}/", relative_path.to_str().unwrap())
+        format!(
+            "{}/",
+            relative_path.to_str().expect("valid characters").replace("\\", "/")
+        )
     }
 
     fn write_current_document_to_disk(&self, path: PathBuf) {
@@ -588,28 +592,39 @@ mod tests {
     fn test_relative_pagination_urls() {
         let mut state = new_state();
         assert_eq!(
-            "./page/2/".to_string(),
+            "page/2/",
             state.relative_path_between_pages(0, 1)
         );
         assert_eq!(
-            "../../".to_string(),
+            "../../",
             state.relative_path_between_pages(1, 0)
         );
-        assert_eq!("../3/".to_string(), state.relative_path_between_pages(1, 2));
+        assert_eq!(
+            "../3/",
+            state.relative_path_between_pages(1, 2)
+        );
 
         state.file_path = PathBuf::from("file/main/index.html");
         state.page_url_format = "../pages/:num/page/".to_string();
         assert_eq!(
-            "../pages/2/page/".to_string(),
+            "../pages/2/page/",
             state.relative_path_between_pages(0, 1)
         );
         assert_eq!(
-            "../../../main/".to_string(),
+            "../../../main/",
             state.relative_path_between_pages(1, 0)
         );
         assert_eq!(
-            "../../3/page/".to_string(),
+            "../../3/page/",
             state.relative_path_between_pages(1, 2)
+        );
+
+        state.file_path = PathBuf::from("index.html");
+        state.page_url_format = "./:num/".to_string();
+        assert_eq!("2/", state.relative_path_between_pages(0, 1));
+        assert_eq!(
+            "../",
+            state.relative_path_between_pages(1, 0)
         );
     }
 }

@@ -27,7 +27,7 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak
-    Then I should see '<a href="./page/2/">Next Page</a>' in "output/index.html"
+    Then I should see '<a href="page/2/">Next Page</a>' in "output/index.html"
     Then I should see '<a href="../3/">Next Page</a>' in "output/page/2/index.html"
     Then I should see '<a href="../../">Previous Page</a>' in "output/page/2/index.html"
     Then I should see '<a href="../2/">Previous Page</a>' in "output/page/3/index.html"
@@ -59,7 +59,7 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak
-    Then I should see '<a href="./page/2/">Next Page</a>' in "output/index.html"
+    Then I should see '<a href="page/2/">Next Page</a>' in "output/index.html"
     And I should see '<span>No Previous</span>' in "output/index.html"
     And I should see '<span>No Next</span>' in "output/page/2/index.html"
     And I should see '<a href="../../">Previous Page</a>' in "output/page/2/index.html"

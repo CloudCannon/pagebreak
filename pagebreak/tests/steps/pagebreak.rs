@@ -52,7 +52,7 @@ pub fn steps() -> Steps<crate::PagebreakWorld> {
             r#"I should see (?:"|')(.*)(?:"|') in (?:"|')(.*)(?:"|')$"#,
             |world, ctx| {
                 let contents = read_file(&world, &ctx.matches[2]);
-                assert!(contents.contains(&ctx.matches[1]));
+                assert!(dbg!(contents).contains(&ctx.matches[1]));
 
                 world
             },
