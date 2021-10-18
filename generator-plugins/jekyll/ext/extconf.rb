@@ -27,6 +27,8 @@ release_url = if RUBY_PLATFORM =~ /x86_64-darwin/
     build_release_url("x86_64-apple-darwin", JekyllPagebreak::VERSION)
 elsif RUBY_PLATFORM =~ /x86_64-linux/
     build_release_url("x86_64-unknown-linux-musl", JekyllPagebreak::VERSION)
+elsif RUBY_PLATFORM =~ /mingw|windows/ # Todo: No architecture check
+    build_release_url("x86_64-pc-windows-msvc", JekyllPagebreak::VERSION)
 else
     puts "Unsupported platform: #{RUBY_PLATFORM}\nPlease open an issue at https://github.com/CloudCannon/pagebreak/issues"
     exit 1
