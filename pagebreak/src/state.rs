@@ -1,6 +1,6 @@
 use crate::errors;
 use kuchiki::{ElementData, NodeDataRef, NodeRef};
-use path_clean::PathClean;
+use lexiclean::Lexiclean;
 use std::path::Component;
 use std::{fs, path::PathBuf};
 
@@ -483,8 +483,7 @@ impl PagebreakState {
                 } else {
                     PathBuf::from(file_url).join("index.html")
                 };
-                let cleaned_path = self.file_path.parent().unwrap().join(file_path).clean();
-
+                let cleaned_path = self.file_path.parent().unwrap().join(file_path).lexiclean();
                 match cleaned_path.components().next().unwrap() {
                     Component::ParentDir => Err(errors::PageError {
                         code: errors::PageErrorCode::ParentDir,
