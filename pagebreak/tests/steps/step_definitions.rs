@@ -101,39 +101,24 @@ fn selector_attributes(
             .expect("This step requires a table")
             .rows
         {
-            match attributes.get(AsRef::<str>::as_ref(&row[0])) {
-                Some(value) => {
-                    if value != row[1] {
-                        continue 'nodes;
+            let attribute_key = unescape_pipes(&row[0]);
+            let value = match attribute_key.as_ref() {
+                "innerText" => node.text_contents(),
+                _ => {
+                    let value = attributes.get(attribute_key);
+                    match value {
+                        Some(value) => value.to_string(),
+                        None => continue 'nodes,
                     }
                 }
-                None => continue 'nodes,
+            };
+            if value != unescape_pipes(&row[1]) {
+                continue 'nodes;
             }
         }
         return;
     }
     panic!("No nodes found that match all provided attributes");
-}
-
-#[then(
-    regex = "^I should see a selector (?:\"|')(.*)(?:\"|') in (?:\"|')(.*)(?:\"|') with the content (?:\"|')(.*)(?:\"|')$"
-)]
-fn selector_content(
-    world: &mut PagebreakWorld,
-    selector: String,
-    filename: String,
-    expected: String,
-) {
-    assert!(world.check_file_exists(&filename));
-    let parsed_file = parse_file(&world.read_file(&filename));
-
-    for node in select_nodes(&parsed_file, &selector) {
-        let content = node.text_contents();
-        if content == expected {
-            return;
-        }
-    }
-    panic!("No nodes found that contained the content");
 }
 
 // HELPERS
@@ -154,6 +139,10 @@ fn node_attributes(node: &NodeDataRef<ElementData>) -> RefCell<Attributes> {
         .expect("Given selector was an element")
         .attributes
         .clone()
+}
+
+fn unescape_pipes(table_value: &str) -> String {
+    table_value.replace("\\PIPE", "|")
 }
 
 fn template_file(body_contents: &str) -> String {
