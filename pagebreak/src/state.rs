@@ -1,7 +1,9 @@
 use crate::errors;
 use kuchiki::{ElementData, NodeDataRef, NodeRef};
 use lexiclean::Lexiclean;
+use std::cell::RefCell;
 use std::path::Component;
+use std::rc::Rc;
 use std::{fs, path::PathBuf};
 
 #[derive(Debug)]
@@ -55,7 +57,7 @@ pub struct PagebreakState {
     file_path: PathBuf,
     output_path: PathBuf,
     page_container: Option<NodeDataRef<ElementData>>,
-    page_items: Option<Vec<PagebreakNode>>,
+    page_items: Option<Rc<RefCell<Vec<PagebreakNode>>>>,
     page_count: Option<usize>,
     per_page: Option<usize>,
     page_url_format: String,
@@ -89,7 +91,7 @@ impl PagebreakState {
             self.find_pagination_children();
             self.find_pagebreak_elements();
             self.page_count = Some(
-                (self.page_items.as_ref().unwrap().len() + self.per_page.unwrap() - 1)
+                (self.page_items.as_ref().unwrap().borrow().len() + self.per_page.unwrap() - 1)
                     / self.per_page.unwrap(),
             );
         }
@@ -101,11 +103,11 @@ impl PagebreakState {
         };
         for page_number in 0..self.page_count.unwrap() {
             self.detach_children();
-            let remaining_items: &mut Vec<PagebreakNode> = self.page_items.as_mut().unwrap();
+            let remaining_items = self.page_items.as_ref().unwrap().clone();
+            let mut remaining_items = remaining_items.borrow_mut();
             let max_count = self.per_page.unwrap().min(remaining_items.len());
 
-            let current_page: Vec<PagebreakNode> = remaining_items.drain(0..max_count).collect();
-            current_page.into_iter().for_each(|element| {
+            remaining_items.drain(0..max_count).for_each(|element| {
                 self.indent_for_next_element();
                 self.reattach_child(element);
             });
@@ -262,7 +264,7 @@ impl PagebreakState {
             }
         }
 
-        self.page_items = Some(children);
+        self.page_items = Some(Rc::new(RefCell::new(children)));
     }
 
     fn find_pagebreak_elements(&mut self) {
@@ -378,10 +380,7 @@ impl PagebreakState {
             self.detach_element(PagebreakElementType::Previous);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index - 1);
-            self.update_element_href(
-                PagebreakElementType::Previous,
-                relative_href,
-            );
+            self.update_element_href(PagebreakElementType::Previous, relative_href);
             self.detach_element(PagebreakElementType::NoPrevious);
         }
 
@@ -389,10 +388,7 @@ impl PagebreakState {
             self.detach_element(PagebreakElementType::Next);
         } else {
             let relative_href = self.relative_path_between_pages(page_index, page_index + 1);
-            self.update_element_href(
-                PagebreakElementType::Next,
-                relative_href,
-            );
+            self.update_element_href(PagebreakElementType::Next, relative_href);
             self.detach_element(PagebreakElementType::NoNext);
         }
     }
@@ -511,7 +507,10 @@ impl PagebreakState {
         }
         format!(
             "{}/",
-            relative_path.to_str().expect("valid characters").replace("\\", "/")
+            relative_path
+                .to_str()
+                .expect("valid characters")
+                .replace("\\", "/")
         )
     }
 
@@ -529,7 +528,7 @@ impl PagebreakStatusLogging for PagebreakState {
     fn log_hydrated(&self) {
         println!(
             "Pagebreak: Found {} items on {:?}; Building {} pages of size {}",
-            self.page_items.as_ref().unwrap().len(),
+            self.page_items.as_ref().unwrap().borrow().len(),
             self.file_path,
             self.page_count.unwrap(),
             self.per_page.unwrap()
@@ -591,40 +590,19 @@ mod tests {
     #[test]
     fn test_relative_pagination_urls() {
         let mut state = new_state();
-        assert_eq!(
-            "page/2/",
-            state.relative_path_between_pages(0, 1)
-        );
-        assert_eq!(
-            "../../",
-            state.relative_path_between_pages(1, 0)
-        );
-        assert_eq!(
-            "../3/",
-            state.relative_path_between_pages(1, 2)
-        );
+        assert_eq!("page/2/", state.relative_path_between_pages(0, 1));
+        assert_eq!("../../", state.relative_path_between_pages(1, 0));
+        assert_eq!("../3/", state.relative_path_between_pages(1, 2));
 
         state.file_path = PathBuf::from("file/main/index.html");
         state.page_url_format = "../pages/:num/page/".to_string();
-        assert_eq!(
-            "../pages/2/page/",
-            state.relative_path_between_pages(0, 1)
-        );
-        assert_eq!(
-            "../../../main/",
-            state.relative_path_between_pages(1, 0)
-        );
-        assert_eq!(
-            "../../3/page/",
-            state.relative_path_between_pages(1, 2)
-        );
+        assert_eq!("../pages/2/page/", state.relative_path_between_pages(0, 1));
+        assert_eq!("../../../main/", state.relative_path_between_pages(1, 0));
+        assert_eq!("../../3/page/", state.relative_path_between_pages(1, 2));
 
         state.file_path = PathBuf::from("index.html");
         state.page_url_format = "./:num/".to_string();
         assert_eq!("2/", state.relative_path_between_pages(0, 1));
-        assert_eq!(
-            "../",
-            state.relative_path_between_pages(1, 0)
-        );
+        assert_eq!("../", state.relative_path_between_pages(1, 0));
     }
 }
