@@ -27,10 +27,18 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak
-    Then I should see '<a href="page/2/">Next Page</a>' in "output/index.html"
-    Then I should see '<a href="../3/">Next Page</a>' in "output/page/2/index.html"
-    Then I should see '<a href="../../">Previous Page</a>' in "output/page/2/index.html"
-    Then I should see '<a href="../2/">Previous Page</a>' in "output/page/3/index.html"
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | page/2/       |
+      | innerText | Next Page     |
+    Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
+      | href      | ../3/         |
+      | innerText | Next Page     |
+    Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
+      | href      | ../../        |
+      | innerText | Previous Page |
+    Then I should see a selector 'a' in "output/page/3/index.html" with the attributes:
+      | href      | ../2/         |
+      | innerText | Previous Page |
 
   Scenario: If I have a complex URL structure, my pagination hrefs should still be correct
     Given I have a "source/red/blue/yellow/index.html" file with the body:
@@ -42,10 +50,18 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak
-    Then I should see '<a href="../../page/2/test/">Next Page</a>' in "output/red/blue/yellow/index.html"
-    Then I should see '<a href="../../3/test/">Next Page</a>' in "output/red/page/2/test/index.html"
-    Then I should see '<a href="../../../blue/yellow/">Previous Page</a>' in "output/red/page/2/test/index.html"
-    Then I should see '<a href="../../2/test/">Previous Page</a>' in "output/red/page/3/test/index.html"
+    Then I should see a selector 'a' in "output/red/blue/yellow/index.html" with the attributes:
+      | href      | ../../page/2/test/    |
+      | innerText | Next Page             |
+    Then I should see a selector 'a' in "output/red/page/2/test/index.html" with the attributes:
+      | href      | ../../3/test/         |
+      | innerText | Next Page             |
+    Then I should see a selector 'a' in "output/red/page/2/test/index.html" with the attributes:
+      | href      | ../../../blue/yellow/ |
+      | innerText | Previous Page         |
+    Then I should see a selector 'a' in "output/red/page/3/test/index.html" with the attributes:
+      | href      | ../../2/test/         |
+      | innerText | Previous Page         |
 
   Scenario: If I have inverse pagination controls, they should hide when next/prev pages exist
     Given I have a "source/index.html" file with the body:
@@ -59,9 +75,15 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak
-    Then I should see '<a href="page/2/">Next Page</a>' in "output/index.html"
-    And I should see '<span>No Previous</span>' in "output/index.html"
-    And I should see '<span>No Next</span>' in "output/page/2/index.html"
-    And I should see '<a href="../../">Previous Page</a>' in "output/page/2/index.html"
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | page/2/       |
+      | innerText | Next Page     |
+    Then I should see a selector 'span' in "output/index.html" with the attributes:
+      | innerText | No Previous   |
+    Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
+      | href      | ../../        |
+      | innerText | Previous Page |
+    Then I should see a selector 'span' in "output/page/2/index.html" with the attributes:
+      | innerText | No Next       |
     But I should not see "No Next" in "output/index.html"
     And I should not see "No Previous" in "output/page/2/index.html"

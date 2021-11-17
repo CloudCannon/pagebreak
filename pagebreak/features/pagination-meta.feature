@@ -18,12 +18,24 @@ Feature: Pagination Meta
       </html>
       """
     When I run Pagebreak
-    Then I should see '<meta content="OG Title" property="og:title">' in "output/index.html"
-    And I should see '<meta content="Twitter Title" property="twitter:title">' in "output/index.html"
-    And I should see '<title>Website Title</title>' in "output/index.html"
-    And I should see '<meta content="OG Title | Page 2" property="og:title">' in "output/page/2/index.html"
-    And I should see '<meta content="Twitter Title | Page 2" property="twitter:title">' in "output/page/2/index.html"
-    And I should see '<title>Website Title | Page 2</title>' in "output/page/2/index.html"
+    Then I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | OG Title                   |
+      | property  | og:title                   |
+    And I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | Twitter Title              |
+      | property  | twitter:title              |
+    And I should see a selector 'title' in "output/index.html" with the attributes:
+      | innerText | Website Title              |
+    # TODO: Gherkin Rust doesn't let us escape pipes in tables:
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | OG Title \PIPE Page 2      |
+      | property  | og:title                   |
+    # TODO: Gherkin Rust doesn't let us escape pipes in tables:
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | Twitter Title \PIPE Page 2 |
+      | property  | twitter:title              |
+    And I should see a selector 'title' in "output/page/2/index.html" with the attributes:
+      | innerText | Website Title \PIPE Page 2 |
 
   Scenario: If I specify a data-pagebreak-meta, I should get custom meta tags
     Given I have a "source/index.html" file with the content:
@@ -43,12 +55,22 @@ Feature: Pagination Meta
       </html>
       """
     When I run Pagebreak
-    Then I should see '<meta content="OG Title" property="og:title">' in "output/index.html"
-    And I should see '<meta content="Twitter Title" property="twitter:title">' in "output/index.html"
-    And I should see '<title>Website Title</title>' in "output/index.html"
-    And I should see '<meta content="Page 2 of OG Title" property="og:title">' in "output/page/2/index.html"
-    And I should see '<meta content="Page 2 of Twitter Title" property="twitter:title">' in "output/page/2/index.html"
-    And I should see '<title>Page 2 of Website Title</title>' in "output/page/2/index.html"
+    Then I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | OG Title                |
+      | property  | og:title                |
+    And I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | Twitter Title           |
+      | property  | twitter:title           |
+    And I should see a selector 'title' in "output/index.html" with the attributes:
+      | innerText | Website Title           |
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | Page 2 of OG Title      |
+      | property  | og:title                |
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | Page 2 of Twitter Title |
+      | property  | twitter:title           |
+    And I should see a selector 'title' in "output/page/2/index.html" with the attributes:
+      | innerText | Page 2 of Website Title |
 
   Scenario: If I don't want to rewrite meta tags, I should set a data-pagebreak-meta=":content"
     Given I have a "source/index.html" file with the content:
@@ -68,9 +90,19 @@ Feature: Pagination Meta
       </html>
       """
     When I run Pagebreak
-    Then I should see '<meta content="OG Title" property="og:title">' in "output/index.html"
-    And I should see '<meta content="Twitter Title" property="twitter:title">' in "output/index.html"
-    And I should see '<title>Website Title</title>' in "output/index.html"
-    And I should see '<meta content="OG Title" property="og:title">' in "output/page/2/index.html"
-    And I should see '<meta content="Twitter Title" property="twitter:title">' in "output/page/2/index.html"
-    And I should see '<title>Website Title</title>' in "output/page/2/index.html"
+    Then I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | OG Title      |
+      | property  | og:title      |
+    And I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content   | Twitter Title |
+      | property  | twitter:title |
+    And I should see a selector 'title' in "output/index.html" with the attributes:
+      | innerText | Website Title |
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | OG Title      |
+      | property  | og:title      |
+    And I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content   | Twitter Title |
+      | property  | twitter:title |
+    And I should see a selector 'title' in "output/page/2/index.html" with the attributes:
+      | innerText | Website Title |

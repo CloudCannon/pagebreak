@@ -17,7 +17,15 @@ Feature: Pagination Canonicals
       </html>
       """
     When I run Pagebreak
-    Then I should see '<link href="https://example.com/blog/" rel="canonical">' in "output/index.html"
-    And I should see '<meta content="https://example.com/blog/" property="og:url">' in "output/index.html"
-    Then I should see '<link href="https://example.com/blog/page/2/" rel="canonical">' in "output/page/2/index.html"
-    And I should see '<meta content="https://example.com/blog/page/2/" property="og:url">' in "output/page/2/index.html"
+    Then I should see a selector 'link' in "output/index.html" with the attributes:
+      | href     | https://example.com/blog/        |
+      | rel      | canonical                        |
+    Then I should see a selector 'meta' in "output/index.html" with the attributes:
+      | content  | https://example.com/blog/        |
+      | property | og:url                           |
+    Then I should see a selector 'link' in "output/page/2/index.html" with the attributes:
+      | href     | https://example.com/blog/page/2/ |
+      | rel      | canonical                        |
+    Then I should see a selector 'meta' in "output/page/2/index.html" with the attributes:
+      | content  | https://example.com/blog/page/2/ |
+      | property | og:url                           |
