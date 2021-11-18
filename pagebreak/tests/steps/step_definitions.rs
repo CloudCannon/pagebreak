@@ -95,12 +95,12 @@ fn selector_attributes(
     'nodes: for node in select_nodes(&parsed_file, &selector) {
         let atts = node_attributes(&node);
         let attributes = atts.borrow_mut();
-        for row in &step
+        let rows = &step
             .table
             .as_ref()
             .expect("This step requires a table")
-            .rows
-        {
+            .rows;
+        for row in rows {
             let attribute_key = unescape_pipes(&row[0]);
             let value = match attribute_key.as_ref() {
                 "innerText" => node.text_contents(),
@@ -116,9 +116,18 @@ fn selector_attributes(
                 continue 'nodes;
             }
         }
+        for attribute in attributes.map.keys() {
+            let attribute_expected = rows
+                .iter()
+                .map(|row| &row[0])
+                .any(|x| x == &attribute.local.to_string());
+            if !attribute_expected {
+                continue 'nodes;
+            }
+        }
         return;
     }
-    panic!("No nodes found that match all provided attributes");
+    panic!("No nodes found that exactly match all provided attributes");
 }
 
 // HELPERS
