@@ -1,5 +1,7 @@
 # Pagebreak
 
+[![Test](https://github.com/CloudCannon/pagebreak/actions/workflows/test.yml/badge.svg)](https://github.com/CloudCannon/pagebreak/actions/workflows/test.yml)
+
 > :warning: Pagebreak is in an early stage of development, and breaking changes are likely before a 1.0 release
 
 # Table of contents

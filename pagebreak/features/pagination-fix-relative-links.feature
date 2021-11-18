@@ -17,10 +17,18 @@ Feature: Pagination Fix Relative Links
       </html>
       """
     When I run Pagebreak
-    Then I should see '<link href="styles.css" rel="stylesheet">' in "output/index.html"
-    And I should see '<a href="contact">Contact</a>' in "output/index.html"
-    And I should see '<link href="../styles.css" rel="stylesheet">' in "output/2/index.html"
-    And I should see '<a href="../contact">Contact</a>' in "output/2/index.html"
+    Then I should see a selector 'link' in "output/index.html" with the attributes:
+      | href      | styles.css    |
+      | rel       | stylesheet    |
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | contact       |
+      | innerText | Contact       |
+    Then I should see a selector 'link' in "output/2/index.html" with the attributes:
+      | href      | ../styles.css |
+      | rel       | stylesheet    |
+    Then I should see a selector 'a' in "output/2/index.html" with the attributes:
+      | href      | ../contact    |
+      | innerText | Contact       |
 
   Scenario: Absolute URLs should remain unchanged in paginated pages
     Given I have a "source/index.html" file with the content:
@@ -40,9 +48,21 @@ Feature: Pagination Fix Relative Links
       </html>
       """
     When I run Pagebreak
-    Then I should see '<link href="/styles.css" rel="stylesheet">' in "output/index.html"
-    And I should see '<a href="https://placekitten.com/1142/1600">Contact</a>' in "output/index.html"
-    And I should see '<a href="http://placekitten.com/1142/1600">Contract</a>' in "output/index.html"
-    And I should see '<link href="/styles.css" rel="stylesheet">' in "output/2/index.html"
-    And I should see '<a href="https://placekitten.com/1142/1600">Contact</a>' in "output/2/index.html"
-    And I should see '<a href="http://placekitten.com/1142/1600">Contract</a>' in "output/2/index.html"
+    Then I should see a selector 'link' in "output/index.html" with the attributes:
+      | href      | /styles.css                       |
+      | rel       | stylesheet                        |
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | https://placekitten.com/1142/1600 |
+      | innerText | Contact                           |
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | http://placekitten.com/1142/1600  |
+      | innerText | Contract                          |
+    Then I should see a selector 'link' in "output/2/index.html" with the attributes:
+      | href      | /styles.css                       |
+      | rel       | stylesheet                        |
+    Then I should see a selector 'a' in "output/2/index.html" with the attributes:
+      | href      | https://placekitten.com/1142/1600 |
+      | innerText | Contact                           |
+    Then I should see a selector 'a' in "output/2/index.html" with the attributes:
+      | href      | http://placekitten.com/1142/1600  |
+      | innerText | Contract                          |

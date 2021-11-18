@@ -130,10 +130,7 @@ fn read_pages(path: &Path) -> Vec<SourcePage> {
             let entry = entry.unwrap();
             let path = entry.path().to_owned();
 
-            SourcePage {
-                path: path.to_path_buf(),
-                source: None,
-            }
+            SourcePage { path, source: None }
         })
         .collect();
 

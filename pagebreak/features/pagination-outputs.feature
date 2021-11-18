@@ -10,8 +10,8 @@ Feature: Pagination Controls
       </section>
       """
     When I run Pagebreak with options:
-      | source | output |
-      | dist   | dist   |
+      | source | dist |
+      | output | dist |
     Then I should see "Item 1" in "dist/index.html"
     But I should not see "Item 2" in "dist/index.html"
     And I should see "Item 2" in "dist/page/2/index.html"
