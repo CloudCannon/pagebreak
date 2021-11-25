@@ -50,6 +50,7 @@ Feature: Pagination Meta
       <section data-pagebreak="1" data-pagebreak-meta="Page :num of :content">
       <p>Item 1</p>
       <p>Item 2</p>
+      <p>Item 3</p>
       </section>
       </body>
       </html>
@@ -71,6 +72,14 @@ Feature: Pagination Meta
       | property  | twitter:title           |
     And I should see a selector 'title' in "output/page/2/index.html" with the attributes:
       | innerText | Page 2 of Website Title |
+    And I should see a selector 'meta' in "output/page/3/index.html" with the attributes:
+      | content   | Page 3 of OG Title      |
+      | property  | og:title                |
+    And I should see a selector 'meta' in "output/page/3/index.html" with the attributes:
+      | content   | Page 3 of Twitter Title |
+      | property  | twitter:title           |
+    And I should see a selector 'title' in "output/page/3/index.html" with the attributes:
+      | innerText | Page 3 of Website Title |
 
   Scenario: If I don't want to rewrite meta tags, I should set a data-pagebreak-meta=":content"
     Given I have a "source/index.html" file with the content:
