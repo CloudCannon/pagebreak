@@ -33,7 +33,12 @@ Feature: Pagination Controls
       """
       # Inner
       """
+    And I have a "source/plain.html" file with the body:
+      """
+      Plain
+      """
     When I run Pagebreak
     Then I should see "Item 1" in "output/index.html"
+    And I should see "Plain" in "output/plain.html"
     And I should see "Extra File" in "output/extra.txt"
     And I should see "# Inner" in "output/inner/nested/file.md"
