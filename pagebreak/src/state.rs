@@ -19,6 +19,11 @@ impl PagebreakNode {
     }
 }
 
+enum PagebreakChange {
+    Content(NodeRef, String),
+    Attribute(NodeRef, String, String),
+}
+
 #[derive(Debug, PartialEq)]
 enum PagebreakElementType {
     Next,
@@ -64,6 +69,7 @@ pub struct PagebreakState {
     page_meta_format: String,
     dom_indentation: String,
     pagebreak_elements: Option<Vec<PagebreakElement>>,
+    changes: Vec<PagebreakChange>,
 }
 
 impl PagebreakState {
@@ -80,6 +86,7 @@ impl PagebreakState {
             page_meta_format: ":content | Page :num".to_string(),
             dom_indentation: "\n".to_string(),
             pagebreak_elements: None,
+            changes: Vec::default(),
         }
     }
 
@@ -177,7 +184,30 @@ impl PagebreakState {
             self.write_current_document_to_disk(output_file_path);
 
             self.reattach_elements();
+            self.revert_changes();
         }
+    }
+
+    pub fn revert_changes(&mut self) {
+        for change in &self.changes {
+            match change {
+                PagebreakChange::Content(node, original_content) => {
+                    node.children().for_each(|child| child.detach());
+                    node.append(NodeRef::new_text(original_content))
+                }
+                PagebreakChange::Attribute(node, attribute, value) => {
+                    let mut attributes = node
+                        .as_element()
+                        .expect("Editted node should be an element")
+                        .attributes
+                        .borrow_mut();
+
+                    attributes.remove(attribute.as_str());
+                    attributes.insert(attribute.as_str(), value.clone());
+                }
+            }
+        }
+        self.changes.clear();
     }
 
     pub fn detach_children(&mut self) {
@@ -328,6 +358,10 @@ impl PagebreakState {
 
         if let Ok(elements) = self.document.select(selector) {
             elements.filter(filter).for_each(|element| {
+                self.changes.push(PagebreakChange::Content(
+                    element.as_node().clone(),
+                    element.text_contents(),
+                ));
                 let resolved_content =
                     self.resolve_format(format, page_index, &element.text_contents());
 
@@ -364,6 +398,11 @@ impl PagebreakState {
                     .borrow_mut();
 
                 if let Some(content) = attributes.get(attribute) {
+                    self.changes.push(PagebreakChange::Attribute(
+                        element.as_node().clone(),
+                        attribute.to_string(),
+                        String::from(content),
+                    ));
                     let resolved_content = self.resolve_format(format, page_index, content);
                     attributes.remove(attribute);
                     attributes.insert(attribute, resolved_content);
