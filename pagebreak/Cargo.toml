@@ -15,7 +15,6 @@ harness = false   # Allows Cucumber to print output instead of libtest
 clap = "2.33.0"
 kuchiki = "0.8.1"
 globwalk = "0.8.1"
-fs_extra = "1.2.0"
 rayon = "1.5.1"
 async-trait = "0.1.42"
 lexiclean = "0.0.1"

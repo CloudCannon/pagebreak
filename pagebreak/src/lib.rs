@@ -2,7 +2,7 @@ use kuchiki::{traits::TendrilSink, NodeRef};
 use rayon::prelude::*;
 use state::*;
 use std::{
-    fs,
+    fs::{self, copy, create_dir_all, remove_dir_all, remove_file},
     io::Read,
     path::{Path, PathBuf},
 };
@@ -56,20 +56,70 @@ impl PagebreakRunner {
         }
     }
 
+    fn clean_output(&self) {
+        let dest = self.full_output_path();
+        let dest_globwalker = globwalk::GlobWalkerBuilder::from_patterns(&dest, &["*"])
+            .build()
+            .unwrap();
+
+        dest_globwalker.for_each(|entry| {
+            if let Ok(entry) = entry {
+                if entry.file_type().is_dir() {
+                    remove_dir_all(entry.path()).expect("Failed to clean directory from output");
+                } else {
+                    remove_file(entry.path()).expect("Failed to clean file from output");
+                }
+            }
+        });
+    }
+
     fn copy_source_to_output(&self) {
-        // Not Yet Implemented
-        // copy the source directory to the output directory
-        // TODO: This also needs to clean up the output directory
-        // fs::create_dir_all(&output_path).unwrap();
-        // let options = CopyOptions::new();
-        // copy(&source, &output_path, &options).unwrap();
+        let source = self.full_source_path();
+        let dest = self.full_output_path();
+
+        if source == dest {
+            return;
+        }
+
+        let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&source, &["**/*", "!*.html"])
+            .build()
+            .unwrap();
+
+        self.clean_output();
+
+        globwalker.for_each(|entry| {
+            if let Ok(entry) = entry {
+                if entry.file_type().is_file() {
+                    self.copy_file_to_output(entry.path());
+                }
+            }
+        });
+    }
+
+    fn copy_file_to_output(&self, path: &Path) {
+        let source = self.full_source_path();
+        let dest = self.full_output_path();
+
+        let relative_path = pathdiff::diff_paths(path, &source).unwrap();
+        let dest_path = dest.join(relative_path);
+        if let Some(parent) = dest_path.parent() {
+            create_dir_all(parent).expect("Failed to create dir for output");
+        }
+        copy(path, dest_path).expect("Failed to copy file to output");
     }
 
     fn read_pages(&mut self) {
         let source = self.full_source_path();
         let pages = read_pages(&source)
             .into_par_iter()
-            .filter(|page| page.contains_pagination())
+            .filter(|page| {
+                if page.contains_pagination() {
+                    true
+                } else {
+                    self.copy_file_to_output(&page.path);
+                    false
+                }
+            })
             .collect();
         self.pages = Some(pages);
     }
@@ -121,7 +171,7 @@ impl SourcePage {
 }
 
 fn read_pages(path: &Path) -> Vec<SourcePage> {
-    let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*.html"])
+    let globwalker = globwalk::GlobWalkerBuilder::from_patterns(&path, &["**/*.html"])
         .build()
         .unwrap();
 
@@ -144,43 +194,3 @@ fn read_pages(path: &Path) -> Vec<SourcePage> {
 
     pages
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     fn gfu(input: &PathBuf, url_format: &str, is_path: &str, when_num: usize) {
-//         assert_eq!(
-//             PathBuf::from(is_path),
-//             get_file_url(input, url_format, when_num).unwrap()
-//         );
-//     }
-
-//     #[test]
-//     fn test_get_file_url() {
-//         let input = PathBuf::from("about/index.html");
-//         let url_format = "./page/:num/";
-//         gfu(&input, url_format, "about/index.html", 0);
-//         gfu(&input, url_format, "about/page/2/index.html", 1);
-
-//         let input = PathBuf::from("index.html");
-//         let url_format = "./page/:num/";
-//         gfu(&input, url_format, "index.html", 0);
-//         gfu(&input, url_format, "page/2/index.html", 1);
-
-//         let input = PathBuf::from("a/b/c/index.html");
-//         let url_format = "../../page/:num/";
-//         gfu(&input, url_format, "a/b/c/index.html", 0);
-//         gfu(&input, url_format, "a/page/2/index.html", 1);
-//     }
-
-//     #[test]
-//     fn test_bad_file_url() {
-//         let input = PathBuf::from("index.html");
-//         let url_format = "../../page/:num/";
-//         assert_eq!(
-//             errors::PageErrorCode::ParentDir,
-//             get_file_url(&input, url_format, 1).unwrap_err().code
-//         );
-//     }
-// }
