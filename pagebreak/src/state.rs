@@ -20,8 +20,17 @@ impl PagebreakNode {
 }
 
 enum PagebreakChange {
-    Content(NodeRef, String),
-    Attribute(NodeRef, String, String),
+    Content {
+        node: NodeRef,
+        format: String,
+        original_content: String,
+    },
+    Attribute {
+        node: NodeRef,
+        format: String,
+        attribute: String,
+        original_content: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -97,10 +106,97 @@ impl PagebreakState {
             self.read_pagebreak_node();
             self.find_pagination_children();
             self.find_pagebreak_elements();
+            self.find_changes();
             self.page_count = Some(
                 (self.page_items.as_ref().unwrap().borrow().len() + self.per_page.unwrap() - 1)
                     / self.per_page.unwrap(),
             );
+        }
+    }
+
+    fn find_changes(&mut self) {
+        if let Ok(select) = self.document.select("title") {
+            select.for_each(|element| {
+                self.changes.push(PagebreakChange::Content {
+                    node: element.as_node().clone(),
+                    original_content: element.text_contents(),
+                    format: self.page_meta_format.clone(),
+                })
+            });
+        }
+
+        if let Ok(select) = self.document.select("[property=\"og:title\"]") {
+            select.for_each(|element| {
+                self.changes.push(PagebreakChange::Attribute {
+                    node: element.as_node().clone(),
+                    original_content: String::from(
+                        element.attributes.borrow().get("content").unwrap(),
+                    ),
+                    attribute: String::from("content"),
+                    format: self.page_meta_format.clone(),
+                })
+            });
+        }
+
+        if let Ok(select) = self.document.select("[property=\"twitter:title\"]") {
+            select.for_each(|element| {
+                self.changes.push(PagebreakChange::Attribute {
+                    node: element.as_node().clone(),
+                    original_content: String::from(
+                        element.attributes.borrow().get("content").unwrap(),
+                    ),
+                    attribute: String::from("content"),
+                    format: self.page_meta_format.clone(),
+                })
+            });
+        }
+
+        if let Ok(select) = self.document.select("[href]") {
+            select
+                .filter(|element| {
+                    let attributes = element.as_node().as_element().unwrap().attributes.borrow();
+                    let url = attributes.get("href").unwrap();
+                    !url.starts_with("http://")
+                        && !url.starts_with("https://")
+                        && !url.starts_with('/')
+                        && !url.starts_with('#')
+                })
+                .for_each(|element| {
+                    self.changes.push(PagebreakChange::Attribute {
+                        node: element.as_node().clone(),
+                        original_content: String::from(
+                            element.attributes.borrow().get("href").unwrap(),
+                        ),
+                        attribute: String::from("href"),
+                        format: String::from(":rel-from:content"),
+                    })
+                });
+        }
+
+        if let Ok(select) = self.document.select("[rel=\"canonical\"]") {
+            select.for_each(|element| {
+                self.changes.push(PagebreakChange::Attribute {
+                    node: element.as_node().clone(),
+                    original_content: String::from(
+                        element.attributes.borrow().get("href").unwrap(),
+                    ),
+                    attribute: String::from("href"),
+                    format: String::from(":content:rel-to"),
+                })
+            });
+        }
+
+        if let Ok(select) = self.document.select("[property=\"og:url\"]") {
+            select.for_each(|element| {
+                self.changes.push(PagebreakChange::Attribute {
+                    node: element.as_node().clone(),
+                    original_content: String::from(
+                        element.attributes.borrow().get("content").unwrap(),
+                    ),
+                    attribute: String::from("content"),
+                    format: String::from(":content:rel-to"),
+                })
+            });
         }
     }
 
@@ -120,55 +216,8 @@ impl PagebreakState {
             });
 
             self.indent_for_next_element();
-
-            let meta_format = &self.page_meta_format.clone();
-            self.update_tag_content(meta_format, "title", page_number, |_| true);
-            self.update_tag_attribute(
-                meta_format,
-                "[property=\"og:title\"]",
-                "content",
-                page_number,
-                |_| true,
-            );
-            self.update_tag_attribute(
-                meta_format,
-                "[property=\"twitter:title\"]",
-                "content",
-                page_number,
-                |_| true,
-            );
-
-            self.update_tag_attribute(
-                ":rel-from:content",
-                "[href]",
-                "href",
-                page_number,
-                |element| {
-                    let attributes = element.as_node().as_element().unwrap().attributes.borrow();
-                    let url = attributes.get("href").unwrap();
-                    !url.starts_with("http://")
-                        && !url.starts_with("https://")
-                        && !url.starts_with('/')
-                },
-            );
-
-            self.update_tag_attribute(
-                ":content:rel-to",
-                "[rel=\"canonical\"]",
-                "href",
-                page_number,
-                |_| true,
-            );
-
-            self.update_tag_attribute(
-                ":content:rel-to",
-                "[property=\"og:url\"]",
-                "content",
-                page_number,
-                |_| true,
-            );
-
             self.update_elements_for_page(page_number, self.page_count.unwrap());
+            self.apply_changes(page_number);
 
             let cleaned_file_url = self.get_file_url(page_number);
             let file_url = match cleaned_file_url {
@@ -184,30 +233,45 @@ impl PagebreakState {
             self.write_current_document_to_disk(output_file_path);
 
             self.reattach_elements();
-            self.revert_changes();
         }
     }
 
-    pub fn revert_changes(&mut self) {
+    pub fn apply_changes(&mut self, page_index: usize) {
+        if page_index == 0 {
+            return;
+        }
+
         for change in &self.changes {
             match change {
-                PagebreakChange::Content(node, original_content) => {
-                    node.children().for_each(|child| child.detach());
-                    node.append(NodeRef::new_text(original_content))
-                }
-                PagebreakChange::Attribute(node, attribute, value) => {
-                    let mut attributes = node
-                        .as_element()
-                        .expect("Editted node should be an element")
-                        .attributes
-                        .borrow_mut();
+                PagebreakChange::Content {
+                    node,
+                    original_content,
+                    format,
+                } => {
+                    let resolved_content =
+                        self.resolve_format(format, page_index, original_content);
 
-                    attributes.remove(attribute.as_str());
-                    attributes.insert(attribute.as_str(), value.clone());
+                    node.children().for_each(|child| child.detach());
+                    node.append(NodeRef::new_text(&resolved_content))
+                }
+                PagebreakChange::Attribute {
+                    node,
+                    attribute,
+                    original_content,
+                    format,
+                } => {
+                    let mut attributes = node.as_element().unwrap().attributes.borrow_mut();
+                    let attribute = &attribute[..];
+
+                    if attributes.get(attribute).is_some() {
+                        let resolved_content =
+                            self.resolve_format(format, page_index, original_content);
+                        attributes.remove(attribute);
+                        attributes.insert(attribute, resolved_content);
+                    }
                 }
             }
         }
-        self.changes.clear();
     }
 
     pub fn detach_children(&mut self) {
@@ -334,7 +398,7 @@ impl PagebreakState {
         self.pagebreak_elements = Some(elements);
     }
 
-    fn resolve_format(&mut self, format: &str, page_index: usize, content: &str) -> String {
+    fn resolve_format(&self, format: &str, page_index: usize, content: &str) -> String {
         let path_to = self.relative_path_between_pages(0, page_index);
         let path_from = self.relative_path_between_pages(page_index, 0);
 
@@ -343,72 +407,6 @@ impl PagebreakState {
             .replace(":content", content)
             .replace(":rel-from", &path_from)
             .replace(":rel-to", &path_to)
-    }
-
-    fn update_tag_content(
-        &mut self,
-        format: &str,
-        selector: &str,
-        page_index: usize,
-        filter: fn(&NodeDataRef<ElementData>) -> bool,
-    ) {
-        if page_index == 0 {
-            return;
-        }
-
-        if let Ok(elements) = self.document.select(selector) {
-            elements.filter(filter).for_each(|element| {
-                self.changes.push(PagebreakChange::Content(
-                    element.as_node().clone(),
-                    element.text_contents(),
-                ));
-                let resolved_content =
-                    self.resolve_format(format, page_index, &element.text_contents());
-
-                element
-                    .as_node()
-                    .children()
-                    .for_each(|child| child.detach());
-                element
-                    .as_node()
-                    .append(NodeRef::new_text(&resolved_content))
-            });
-        }
-    }
-
-    fn update_tag_attribute(
-        &mut self,
-        format: &str,
-        selector: &str,
-        attribute: &str,
-        page_index: usize,
-        filter: fn(&NodeDataRef<ElementData>) -> bool,
-    ) {
-        if page_index == 0 {
-            return;
-        }
-
-        if let Ok(elements) = self.document.select(selector) {
-            elements.filter(filter).for_each(|element| {
-                let mut attributes = element
-                    .as_node()
-                    .as_element()
-                    .unwrap()
-                    .attributes
-                    .borrow_mut();
-
-                if let Some(content) = attributes.get(attribute) {
-                    self.changes.push(PagebreakChange::Attribute(
-                        element.as_node().clone(),
-                        attribute.to_string(),
-                        String::from(content),
-                    ));
-                    let resolved_content = self.resolve_format(format, page_index, content);
-                    attributes.remove(attribute);
-                    attributes.insert(attribute, resolved_content);
-                }
-            });
-        }
     }
 
     fn update_elements_for_page(&mut self, page_index: usize, total_pages: usize) {
@@ -504,7 +502,7 @@ impl PagebreakState {
             .append(NodeRef::new_text(&self.dom_indentation));
     }
 
-    fn get_file_url(&mut self, page_number: usize) -> Result<PathBuf, errors::PageError> {
+    fn get_file_url(&self, page_number: usize) -> Result<PathBuf, errors::PageError> {
         match page_number {
             0 => Ok(PathBuf::from(&self.file_path)),
             _ => {
@@ -532,7 +530,7 @@ impl PagebreakState {
         }
     }
 
-    fn relative_path_between_pages(&mut self, from: usize, to: usize) -> String {
+    fn relative_path_between_pages(&self, from: usize, to: usize) -> String {
         let from_path = self.get_file_url(from).unwrap();
         let to_path = self.get_file_url(to).unwrap();
         let mut relative_path =
