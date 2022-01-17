@@ -100,6 +100,10 @@ impl PagebreakRunner {
         let source = self.full_source_path();
         let dest = self.full_output_path();
 
+        if source == dest {
+            return;
+        }
+
         let relative_path = pathdiff::diff_paths(path, &source).unwrap();
         let dest_path = dest.join(relative_path);
         if let Some(parent) = dest_path.parent() {
