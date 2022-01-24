@@ -23,7 +23,7 @@ def build_release_url(arch, version)
   "https://github.com/CloudCannon/pagebreak/releases/download/v#{version}/pagebreak-v#{version}-#{arch}.tar.gz"
 end
 
-release_url = if RUBY_PLATFORM =~ /x86_64-darwin/
+release_url = if RUBY_PLATFORM =~ /x86_64-darwin|arm64-darwin/
     build_release_url("x86_64-apple-darwin", JekyllPagebreak::VERSION)
 elsif RUBY_PLATFORM =~ /x86_64-linux/
     build_release_url("x86_64-unknown-linux-musl", JekyllPagebreak::VERSION)
