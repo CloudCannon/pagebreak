@@ -36,10 +36,10 @@ end
 
 # Download the tar.gz from GitHub
 require 'open-uri'
-if open(release_url)
+if URI.open(release_url)
   puts "Downloading Pagebreak v#{JekyllPagebreak::VERSION} from GitHub"
   open('pagebreak.tar.gz', 'wb') do |file|
-    file << open(release_url).read
+    file << URI.open(release_url).read
   end
 else
   puts "Could not find Pagebreak v#{JekyllPagebreak::VERSION}"
