@@ -28,11 +28,11 @@ Feature: Pagination Controls
       """
     When I run Pagebreak
     Then I should see a selector 'a' in "output/index.html" with the attributes:
-      | href      | page/2/       |
-      | innerText | Next Page     |
+      | href      | page/2/   |
+      | innerText | Next Page |
     Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
-      | href      | ../3/         |
-      | innerText | Next Page     |
+      | href      | ../3/     |
+      | innerText | Next Page |
     Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
       | href      | ../../        |
       | innerText | Previous Page |
@@ -51,17 +51,17 @@ Feature: Pagination Controls
       """
     When I run Pagebreak
     Then I should see a selector 'a' in "output/red/blue/yellow/index.html" with the attributes:
-      | href      | ../../page/2/test/    |
-      | innerText | Next Page             |
+      | href      | ../../page/2/test/ |
+      | innerText | Next Page          |
     Then I should see a selector 'a' in "output/red/page/2/test/index.html" with the attributes:
-      | href      | ../../3/test/         |
-      | innerText | Next Page             |
+      | href      | ../../3/test/ |
+      | innerText | Next Page     |
     Then I should see a selector 'a' in "output/red/page/2/test/index.html" with the attributes:
       | href      | ../../../blue/yellow/ |
       | innerText | Previous Page         |
     Then I should see a selector 'a' in "output/red/page/3/test/index.html" with the attributes:
-      | href      | ../../2/test/         |
-      | innerText | Previous Page         |
+      | href      | ../../2/test/ |
+      | innerText | Previous Page |
 
   Scenario: If I have inverse pagination controls, they should hide when next/prev pages exist
     Given I have a "source/index.html" file with the body:
@@ -76,14 +76,38 @@ Feature: Pagination Controls
       """
     When I run Pagebreak
     Then I should see a selector 'a' in "output/index.html" with the attributes:
-      | href      | page/2/       |
-      | innerText | Next Page     |
+      | href      | page/2/   |
+      | innerText | Next Page |
     Then I should see a selector 'span' in "output/index.html" with the attributes:
-      | innerText | No Previous   |
+      | innerText | No Previous |
     Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
       | href      | ../../        |
       | innerText | Previous Page |
     Then I should see a selector 'span' in "output/page/2/index.html" with the attributes:
-      | innerText | No Next       |
+      | innerText | No Next |
     But I should not see "No Next" in "output/index.html"
     And I should not see "No Previous" in "output/page/2/index.html"
+
+  # Prevent regression
+  Scenario: Pagination controls with no href should work
+    Given I have a "source/index.html" file with the body:
+      """
+      <section data-pagebreak="1"><p></p><p></p><p></p></section>
+      <section>
+      <a href="" data-pagebreak-control="prev">Previous Page</a>
+      <a href="" data-pagebreak-control="next">Next Page</a>
+      </section>
+      """
+    When I run Pagebreak
+    Then I should see a selector 'a' in "output/index.html" with the attributes:
+      | href      | page/2/   |
+      | innerText | Next Page |
+    Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
+      | href      | ../3/     |
+      | innerText | Next Page |
+    Then I should see a selector 'a' in "output/page/2/index.html" with the attributes:
+      | href      | ../../        |
+      | innerText | Previous Page |
+    Then I should see a selector 'a' in "output/page/3/index.html" with the attributes:
+      | href      | ../2/         |
+      | innerText | Previous Page |

@@ -156,7 +156,8 @@ impl PagebreakState {
                 .filter(|element| {
                     let attributes = element.as_node().as_element().unwrap().attributes.borrow();
                     let url = attributes.get("href").unwrap();
-                    !url.starts_with("http://")
+                    url.len() > 0
+                        && !url.starts_with("http://")
                         && !url.starts_with("https://")
                         && !url.starts_with('/')
                         && !url.starts_with('#')
