@@ -30,6 +30,11 @@ jobs:
             rust: stable
             target: x86_64-unknown-linux-musl
             cross: false
+          - build: aarch64
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-gnu
+            cross: true
           - build: macos
             os: macos-latest
             rust: stable

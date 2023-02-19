@@ -20,13 +20,15 @@ puts "Installing Pagebreak"
 
 # Construct our release url
 def build_release_url(arch, version)
-  "https://github.com/CloudCannon/pagebreak/releases/download/v#{version}/pagebreak-v#{version}-#{arch}.tar.gz"
+  "https://github.com/shao1555/pagebreak/releases/download/v#{version}/pagebreak-v#{version}-#{arch}.tar.gz"
 end
 
 release_url = if RUBY_PLATFORM =~ /x86_64-darwin|arm64-darwin/
     build_release_url("x86_64-apple-darwin", JekyllPagebreak::VERSION)
 elsif RUBY_PLATFORM =~ /x86_64-linux/
     build_release_url("x86_64-unknown-linux-musl", JekyllPagebreak::VERSION)
+elsif RUBY_PLATFORM =~ /aarch64-linux/
+  build_release_url("aarch64-unknown-linux-musl", JekyllPagebreak::VERSION)
 elsif RUBY_PLATFORM =~ /mingw|windows/ # Todo: No architecture check
     build_release_url("x86_64-pc-windows-msvc", JekyllPagebreak::VERSION)
 else
