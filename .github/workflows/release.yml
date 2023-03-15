@@ -9,45 +9,244 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  HUMANE_VERSION: "0.6.0"
 
 jobs:
-  # publish-crate:
-  #   name: Publish Crate
-  #   runs-on: ubuntu-20.04
-  #   defaults:
-  #     run:
-  #       working-directory: ./pagebreak
-  #   steps:
-  #   - name: Clone
-  #     uses: actions/checkout@v2
-  #   - name: Cache
-  #     uses: actions/cache@v2
-  #     with:
-  #       path: |
-  #         ~/.cargo/registry
-  #         ~/.cargo/git
-  #         ~/.rustup
-  #         target
-  #       key: ${{ runner.os }}-stable
-  #   - name: Setup
-  #     run: |
-  #       rustup install stable
-  #   - name: Build
-  #     run: cargo build --verbose
-  #   - name: Run tests
-  #     run: cargo test
-  #   - name: Publish
-  #     run: cargo publish
-  #     env:
-  #       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  publish-crate:
+    name: Publish Crate
+    runs-on: ubuntu-20.04
+    needs: publish-github-release
+    steps:
+      - name: Clone
+        uses: actions/checkout@v2
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.rustup
+            target
+          key: ${{ runner.os }}-stable
 
-  publish-to-github:
-    name: Publish to Github
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            override: true
+            default: true
+            components: rustfmt, clippy
+
+      - name: Get Version
+        run: echo GIT_VERSION="$(git describe --tags | sed 's/^v\(.*\)$/\1/')" >> $GITHUB_ENV
+      - name: Prepare Git
+        run: |
+          git config user.email "github@github.com"
+          git config user.name "Github Actions"
+          git checkout -b main
+          # Use throw-away branch so we don't push the changes to origin
+          git checkout -b deploy_branch
+      - name: Prepare Crates
+        run: |
+          # Update cargo version, 
+          node ./.backstage/version.cjs
+          git add ./pagebreak/Cargo.toml
+          # Commit changes so cargo doesn't complain about dirty repo
+          git commit -m "Deploy changes."
+
+      - name: Build
+        run: cargo build --release --verbose
+      - name: Publish
+        working-directory: ./pagebreak
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-npm-package:
+    name: Publish NPM package
+    runs-on: ubuntu-20.04
+    needs: publish-binary-npm-packages
+    steps:
+      - name: Clone
+        uses: actions/checkout@v2
+      - uses: actions/download-artifact@v3
+        with:
+          name: release-checksums
+          path: wrappers/node/checksums
+
+      - name: Get Version
+        run: echo GIT_VERSION="$(git describe --tags | sed 's/^v\(.*\)$/\1/')" >> $GITHUB_ENV
+      - name: Get Tag
+        run: echo GIT_TAG="$(node ./.backstage/get_tag.cjs)" >> $GITHUB_ENV
+
+      - name: Version optional dependencies
+        run: |
+          node ./.backstage/version_main_package.cjs
+
+      - name: Prepare package
+        working-directory: ./wrappers/node
+        run: |
+          npm version $GIT_VERSION
+      - name: Publish
+        working-directory: ./wrappers/node
+        run: npm publish --tag $GIT_TAG
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-binary-npm-packages:
+    name: Publish Binary NPM packages
+    runs-on: ubuntu-20.04
+    needs: publish-github-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            package: pagebreak-windows-x64
+            os: win32
+            cpu: x64
+          - target: x86_64-unknown-linux-musl
+            package: pagebreak-linux-x64
+            os: linux
+            cpu: x64
+          - target: aarch64-unknown-linux-musl
+            package: pagebreak-linux-arm64
+            os: linux
+            cpu: arm64
+          - target: x86_64-apple-darwin
+            package: pagebreak-darwin-x64
+            os: darwin
+            cpu: x64
+          - target: aarch64-apple-darwin
+            package: pagebreak-darwin-arm64
+            os: darwin
+            cpu: arm64
+    steps:
+      - name: Clone
+        uses: actions/checkout@v2
+      - uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: build-artifacts
+
+      - name: Get Version
+        run: echo GIT_VERSION="$(git describe --tags | sed 's/^v\(.*\)$/\1/')" >> $GITHUB_ENV
+      - name: Get Tag
+        run: echo GIT_TAG="$(node ./.backstage/get_tag.cjs)" >> $GITHUB_ENV
+
+      - name: Create Package
+        run: |
+          mkdir -p ${{ matrix.package }}/bin/
+          cd ${{ matrix.package }}
+          node ../.backstage/create_package.cjs ${{ matrix.os }} ${{ matrix.cpu }}
+          cp ../wrappers/node/.npmrc .
+
+      - name: Extract Binary
+        working-directory: build-artifacts
+        run: |
+          tar xzf pagebreak-v$GIT_VERSION-${{ matrix.target }}.tar.gz
+          rm *.tar.gz
+          mv * ../${{ matrix.package }}/bin/
+
+      - name: Prepare package
+        working-directory: ${{ matrix.package }}
+        run: |
+          npm version $GIT_VERSION
+      - name: Publish
+        working-directory: ${{ matrix.package }}
+        run: npm publish --tag $GIT_TAG --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-release:
+    name: Publish to GitHub
+    runs-on: ubuntu-20.04
+    needs: test-and-build
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - name: Get Token
+        id: get_workflow_token
+        uses: peter-murray/workflow-application-token-action@v2
+        with:
+          application_id: ${{ secrets.CC_OSS_BOT_ID }}
+          application_private_key: ${{ secrets.CC_OSS_BOT_PEM }}
+      - name: Clone
+        uses: actions/checkout@v2
+        with:
+          token: ${{ steps.get_workflow_token.outputs.token }}
+      - name: Swap to main
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          fetch-depth: 0 # Full fetch
+          token: ${{ steps.get_workflow_token.outputs.token }}
+
+      - name: Get Version
+        run: echo GIT_VERSION="$(git describe --tags | sed 's/^v\(.*\)$/\1/')" >> $GITHUB_ENV
+      - name: Get Tag
+        run: echo GIT_TAG="$(node ./.backstage/get_tag.cjs)" >> $GITHUB_ENV
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: build-artifacts
+      - name: Build CHANGELOG
+        if: env.GIT_TAG == 'latest'
+        run: |
+          node ./.backstage/changelog.cjs write
+          echo CHANGELOG=\"$(base64 -w 0 -i CHANGELOG.md)\" >> $GITHUB_ENV
+          echo SHA=\"$( git rev-parse main:CHANGELOG.md )\" >> $GITHUB_ENV
+      - name: Build CHANGELOG
+        if: env.GIT_TAG != 'latest'
+        run: |
+          echo "## Prerelease" > RELEASE.md
+          node ./.backstage/changelog.cjs write || true
+
+      - name: Commit new CHANGELOG
+        uses: octokit/request-action@v2.x
+        if: env.GIT_TAG == 'latest'
+        id: push_changes
+        with:
+          route: PUT /repos/{owner}/{repo}/contents/CHANGELOG.md
+          owner: cloudcannon
+          repo: pagebreak
+          branch: main
+          message: Changelog for ${{ env.GIT_VERSION }}
+          sha: ${{ env.SHA }}
+          content: ${{ env.CHANGELOG }}
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+      - name: Release documentation branch
+        uses: octokit/request-action@v2.x
+        if: env.GIT_TAG == 'latest'
+        id: merge_docs
+        with:
+          route: POST /repos/{owner}/{repo}/merges
+          owner: cloudcannon
+          repo: pagebreak
+          base: production-docs
+          head: main
+          commit_message: Release documentation for ${{ env.GIT_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/') && env.GIT_TAG == 'latest'
+        with:
+          body_path: RELEASE.md
+          files: |
+            build-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+
+  test-and-build:
+    name: Test and Build
     runs-on: ${{matrix.os}}
     defaults:
       run:
         shell: bash
-        working-directory: ./pagebreak
     strategy:
       matrix:
         include:
@@ -56,28 +255,31 @@ jobs:
             rust: stable
             target: x86_64-pc-windows-msvc
             cross: false
+            run_tests: true
           - build: linux
             os: ubuntu-latest
             rust: stable
             target: x86_64-unknown-linux-musl
             cross: false
-          # - build: arm-v7
-          #   os: ubuntu-latest
-          #   rust: stable
-          #   target: armv7-unknown-linux-gnueabihf
-          #   linker: gcc-arm-linux-gnueabihf
-          #   cross: true
-          # - build: aarch64
-          #   os: ubuntu-latest
-          #   rust: stable
-          #   target: aarch64-unknown-linux-gnu
-          #   linker: gcc-aarch64-linux-gnu
-          #   cross: true
+            run_tests: true
+          - build: linux
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-musl
+            cross: false
+            run_tests: false
           - build: macos
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
             cross: false
+            run_tests: true
+          - build: macos-m1
+            os: macos-latest
+            rust: stable
+            target: aarch64-apple-darwin
+            cross: false
+            run_tests: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -94,65 +296,121 @@ jobs:
             target
           key: ${{ runner.os }}-${{ matrix.rust }}
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      # From https://github.com/Emoun/duplicate/blob/master/.github/workflows/rust.yml
+      - name: Get Version
+        run: echo GIT_VERSION="$(git describe --tags | sed 's/^v\(.*\)$/\1/')" >> $GITHUB_ENV
+
+      # - name: Verify Changelog
+      #   run: |
+      #     node ./.backstage/changelog.cjs
+
       - name: Install Linker
         if: matrix.cross
         run: |
           sudo apt update
           sudo apt install ${{ matrix.linker }}
-      - name: Install Rust
+      - name: Install Tooling
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          rustup install ${{ matrix.rust }}
-          rustup target add ${{ matrix.target }}
-          rustup show
+          sudo apt update -y
+          sudo apt install -y musl-tools musl-dev clang gcc-aarch64-linux-gnu         
+          echo "TARGET_CC=clang" >> $GITHUB_ENV
+          echo "CFLAGS_aarch64_unknown_linux_musl=--sysroot=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/aarch64-linux-gnu/bin/ld" >> $GITHUB_ENV
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: ${{ matrix.rust }}
+            target: ${{ matrix.target }}
+            override: true
+            default: true
+            components: rustfmt, clippy
+
+      - name: Install humane
+        if: matrix.run_tests == true
+        uses: supplypike/setup-bin@v1
+        with:
+          uri: "https://github.com/CloudCannon/humane/releases/download/v${{env.HUMANE_VERSION}}/humane-v${{env.HUMANE_VERSION}}-${{matrix.target}}.tar.gz"
+          name: "humane"
+          version: ${{env.HUMANE_VERSION}}
+
+      - name: Prepare Git
+        run: |
+          git config user.email "github@github.com"
+          git config user.name "Github Actions"
+          git checkout -b main
+          # Use throw-away branch so we don't push the changes to origin
+          git checkout -b deploy_branch
+      - name: Prepare Crates
+        run: |
+          # Update cargo version, 
+          node ./.backstage/version.cjs
+          git add ./pagebreak/Cargo.toml
+          # Commit changes so cargo doesn't complain about dirty repo
+          git commit -m "Deploy changes."
+
       - name: Build
+        working-directory: ./pagebreak
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package Artifacts
+      - name: Test Lib
+        if: matrix.run_tests == true
+        working-directory: ./pagebreak
+        run: cargo test --release --target ${{ matrix.target }}
+
+      - name: Test CLI
+        if: matrix.run_tests == true
+        working-directory: ./pagebreak
+        run: TEST_BINARY=../target/${{ matrix.target }}/release/pagebreak humane
+
+      - name: Create Release Assets
         run: |
-          src=$(pwd)
-          stage=
-          case $RUNNER_OS in
-              Windows)
-                  stage=$(mktemp -d)
-                  ;;
-              Linux)
-                  stage=$(mktemp -d)
-                  ;;
-              macOS)
-                  stage=$(mktemp -d -t tmp)
-                  ;;
-          esac
-          cp target/${{ matrix.target }}/release/pagebreak $stage/
-          cd $stage
-          RELEASE_VERSION=${GITHUB_REF#refs/tags/}
-          ASSET_NAME="pagebreak-$RELEASE_VERSION-${{ matrix.target }}.tar.gz"
-          ASSET_PATH="$src/$ASSET_NAME"
+          EXEC_NAME="pagebreak"
+          ASSET_PATH="$EXEC_NAME-v$GIT_VERSION-${{ matrix.target }}.tar.gz"
           CHECKSUM_PATH="$ASSET_PATH.sha256"
-          tar czf $ASSET_PATH *
-          cd $src
+
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            EXEC_NAME="pagebreak.exe"
+          fi
+
+          if command -v gtar &> /dev/null; then
+            echo "Using gtar"
+            gtar czf $ASSET_PATH -C target/${{ matrix.target }}/release $EXEC_NAME
+          else
+            echo "Using system tar"
+            tar czf $ASSET_PATH -C target/${{ matrix.target }}/release $EXEC_NAME
+          fi
+
           case $RUNNER_OS in
               Windows)
-                  sha256sum $ASSET_NAME > $CHECKSUM_PATH
+                  sha256sum $ASSET_PATH > $CHECKSUM_PATH
                   ;;
               Linux)
-                  sha256sum $ASSET_NAME > $CHECKSUM_PATH
+                  sha256sum $ASSET_PATH > $CHECKSUM_PATH
                   ;;
               macOS)
-                  shasum -a 256 $ASSET_NAME > $CHECKSUM_PATH
+                  shasum -a 256 $ASSET_PATH > $CHECKSUM_PATH
                   ;;
           esac
-          if [ "$RUNNER_OS" == "Windows" ]; then
-              ASSET_PATH=$(echo "$ASSET_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
-              CHECKSUM_PATH=$(echo "$CHECKSUM_PATH" | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
-          fi
+
           echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
           echo "CHECKSUM_PATH=$CHECKSUM_PATH" >> $GITHUB_ENV
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
         with:
-          files: |
+          name: release
+          path: |
             ${{ env.ASSET_PATH }}
             ${{ env.CHECKSUM_PATH }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-checksums
+          path: |
+            ${{ env.CHECKSUM_PATH }}

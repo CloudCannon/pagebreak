@@ -1,0 +1,6 @@
+project_name: Pagebreak
+default_og_image: /og.png
+logo_image: /logo.svg
+side_nav_title: Docs
+github_url: https://github.com/cloudcannon/pagebreak
+version_env_var: HUGO_PAGEBREAK_DOCS_VERSION
