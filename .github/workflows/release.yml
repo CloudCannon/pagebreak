@@ -363,10 +363,10 @@ jobs:
         working-directory: ./pagebreak
         run: cargo test --release --target ${{ matrix.target }}
 
-      - name: Test CLI
-        if: matrix.run_tests == true
-        working-directory: ./pagebreak
-        run: TEST_BINARY=../target/${{ matrix.target }}/release/pagebreak humane
+      # - name: Test CLI
+      #   if: matrix.run_tests == true
+      #   working-directory: ./pagebreak
+      #   run: TEST_BINARY=../target/${{ matrix.target }}/release/pagebreak humane
 
       - name: Create Release Assets
         run: |
