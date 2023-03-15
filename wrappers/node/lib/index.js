@@ -11,7 +11,7 @@ function resolveBinaryPath() {
     const executable = platform === 'windows' ? `${execname}.exe` : execname;
     
     try {
-        return require.resolve(`${execname}-${platform}-${cpu}/bin/${executable}`);
+        return require.resolve(`@${execname}/${platform}-${cpu}/bin/${executable}`);
     } catch (e) {
         console.error(`Failed to install ${execname}. Most likely the platform ${platform}-${cpu} is not yet a supported architecture.`);
         console.error(`Please open an issue at https://github.com/CloudCannon/${execname} and paste this error message in full.`);
