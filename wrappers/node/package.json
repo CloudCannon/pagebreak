@@ -1,5 +1,5 @@
 {
-  "name": "pagebreak",
+  "name": "@pagebreak/cli",
   "version": "0.0.0",
   "description": "Paginate the output of any static site generator.",
   "bin": "lib/index.js",
@@ -10,11 +10,11 @@
   "author": "CloudCannon",
   "license": "MIT",
   "optionalDependencies": {
-    "pagebreak-linux-x64": "0.0.0",
-    "pagebreak-linux-arm64": "0.0.0",
-    "pagebreak-darwin-x64": "0.0.0",
-    "pagebreak-darwin-arm64": "0.0.0",
-    "pagebreak-windows-x64": "0.0.0"
+    "@pagebreak/linux-x64": "0.0.0",
+    "@pagebreak/linux-arm64": "0.0.0",
+    "@pagebreak/darwin-x64": "0.0.0",
+    "@pagebreak/darwin-arm64": "0.0.0",
+    "@pagebreak/windows-x64": "0.0.0"
   },
   "keywords": [
     "pagebreak",

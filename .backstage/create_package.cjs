@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const cwd = process.cwd();
-const package_name = path.basename(cwd);
+const package_name = `@pagebreak/${path.basename(cwd)}`;
 const [os, cpu] = process.argv.slice(2);
 
 if (!os || !cpu) {
