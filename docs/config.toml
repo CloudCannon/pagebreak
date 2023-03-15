@@ -1,0 +1,16 @@
+baseURL = '/'
+languageCode = 'en-us'
+title = 'Pagebreak Documentation'
+summaryLength = 30
+disableKinds = ["taxonomyTerm"]
+
+[markup]
+highlight.noClasses = false
+
+[markup.goldmark.renderer]
+# ensures html inside markdown is allowed to render
+unsafe = true
+
+
+[[module.imports]]
+path = 'github.com/cloudcannon/cossidae'

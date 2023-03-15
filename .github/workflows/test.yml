@@ -2,12 +2,13 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
+  HUMANE_VERSION: "0.6.0"
 
 jobs:
   test:
@@ -16,24 +17,23 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./pagebreak
     strategy:
       matrix:
         include:
-          - build: windows
-            os: windows-latest
-            rust: stable
-            target: x86_64-pc-windows-msvc
-            cross: false
           - build: linux
             os: ubuntu-latest
-            rust: stable
+            rust: beta
             target: x86_64-unknown-linux-musl
             cross: false
           - build: macos
             os: macos-latest
-            rust: stable
+            rust: beta
             target: x86_64-apple-darwin
+            cross: false
+          - build: windows
+            os: windows-latest
+            rust: beta
+            target: x86_64-pc-windows-msvc
             cross: false
     steps:
       - name: Checkout repository
@@ -41,19 +41,33 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.rustup
-            target
-          key: ${{ runner.os }}-${{ matrix.rust }}
-
       - name: Install Rust
-        run: |
-          rustup install ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: ${{ matrix.rust }}
+            target: ${{ matrix.target }}
+            override: true
+            default: true
+            components: rustfmt, clippy
 
-      - name: Test
-        run: cargo test
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install humane
+        uses: supplypike/setup-bin@v1
+        with:
+          uri: "https://github.com/CloudCannon/humane/releases/download/v${{env.HUMANE_VERSION}}/humane-v${{env.HUMANE_VERSION}}-${{matrix.target}}.tar.gz"
+          name: "humane"
+          version: ${{env.HUMANE_VERSION}}
+
+      - name: Build Testing Binary
+        working-directory: ./pagebreak
+        run: cargo build --release
+
+      - name: Test Lib
+        working-directory: ./pagebreak
+        run: cargo test --release --lib
+
