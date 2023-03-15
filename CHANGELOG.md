@@ -9,4 +9,6 @@
 
 ## Unreleased
 
+## v0.10.0 (March 15, 2023)
+
 Re-released Pagebreak using an npm wrapper, making it agnostic to static site generators.
