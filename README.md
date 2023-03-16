@@ -2,8 +2,6 @@
 
 [![Test](https://github.com/CloudCannon/pagebreak/actions/workflows/test.yml/badge.svg?branch=main&event=push)](https://github.com/CloudCannon/pagebreak/actions/workflows/test.yml)
 
-> :warning: Pagebreak is in an early stage of development, and breaking changes are likely before a 1.0 release
-
 # Table of contents
 
 - [Pagebreak](#pagebreak)
@@ -155,35 +153,27 @@ And `items/page/2/archive/index.html` will look like:
 
 ## Usage
 
-### Jekyll
-`Gemfile`:
-```ruby
-group :jekyll_plugins do
-  gem "jekyll-pagebreak"
-end
-```
-`_config.yml`:
-```yml
-plugins:
-  - jekyll-pagebreak
-```
-No further configuration is required. Pages containing pagebreak data tags will be discovered and paginated. To use it, simply output your posts as they are, wrapped in a `data-pagebreak` tag. No pagination tags needed. e.g.:
+If you have NodeJS installed, the easiest way to run pagebreak is via npx:
 
-```liquid
-<section data-pagebreak="10">
-    {% for post in site.posts %}
-        {% include post.html post=post %}
-    {% endfor %}
-</section>
-<a href="" data-pagebreak-control="prev">Previous</a>
-<a href="" data-pagebreak-control="next">Next</a>
+```
+npx @pagebreak/cli -s _site -o _site
 ```
 
-### Hugo
-// TODO
+This wrapper package handles downloading the correct binary release for your platform and executing it. Distributing pagebreak in this way allows it to integrate with any static SSG.
 
-### Eleventy
-// TODO
+### Integrating it with your build
+
+If your site is hosted on CloudCannon, add a `.cloudcannon/postbuild` script to your repo containing the npx script. For other platforms, add the npx command in the correct spot to run a build hook.
+
+Alternatively, you can change the build command for your site. For example:
+
+```bash
+# Jekyll
+bundle exec jekyll build && npx @pagebreak/cli -s _site -o _site
+
+# Hugo
+hugo && npx @pagebreak/cli -s public -o public
+```
 
 ### Standalone
 Pagebreak is also made available as a portable binary, and you can download [the latest release](https://github.com/CloudCannon/pagebreak/releases/latest) for your platform here on GitHub.
