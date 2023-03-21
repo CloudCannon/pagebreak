@@ -12,7 +12,7 @@
   "optionalDependencies": {
     "@pagebreak/linux-x64": "0.0.0",
     "@pagebreak/linux-arm64": "0.10.0",
-    "@pagebreak/darwin-x64": "0.0.0",
+    "@pagebreak/darwin-x64": "0.10.0",
     "@pagebreak/darwin-arm64": "0.10.0",
     "@pagebreak/windows-x64": "0.10.0"
   },
